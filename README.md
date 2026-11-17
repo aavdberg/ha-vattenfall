@@ -180,7 +180,7 @@ Use Linux and Python **3.14.2+** with an isolated environment:
 ```shell
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e ".[test]" "homeassistant==2026.10.0"
+python -m pip install ".[test]" "homeassistant==2026.10.0"
 python -m pytest -q
 python -m ruff check .
 python -m ruff format --check .
@@ -190,6 +190,10 @@ Tests use real HA core/platform objects and synthetic fixtures, including JSON
 wire serialization, stale/recovery behavior, safe diagnostics and monthly period
 semantics. No live portal login is needed. Keep Decimal precision internally and
 expose only JSON-safe attributes.
+
+The Python project installs test dependencies/metadata only; HACS/manual copying
+installs the integration. Do not register `custom_components` as an editable pip
+namespace: HA expects its search paths to be real directories.
 
 Open a detailed English issue before implementing a feature/fix. Keep code, issues,
 PRs and Conventional Commit messages in English. Preserve config-entry and entity
@@ -208,6 +212,12 @@ Both branches require up-to-date Ruff, real-HA tests, Hassfest, HACS and secret-
 checks, PRs and resolved conversations. Automatic Copilot review is configured;
 read the actual review, address or justify every finding, and reply/resolve each
 thread before merging. Do not manually request another review.
+
+During bootstrap, GitHub's license metadata still reflects the initial default
+branch, not the PR. CI verifies the checkout's **complete MIT text** against
+GitHub's canonical template before temporarily substituting that check for HACS's
+default-branch license lookup. The standard HACS license check resumes
+automatically once GitHub detects the license on `main`; other checks are unchanged.
 
 The reusable release workflow is called only after CI succeeds on a push to `dev`
 or `main`. PRs and manual CI runs do not publish. Beta tags are `v<base>-beta.<N>`;

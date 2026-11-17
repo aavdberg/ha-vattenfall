@@ -18,7 +18,7 @@ Fixes #
 - [ ] Ruff lint and formatting passed.
 - [ ] Synthetic tests passed against real Home Assistant.
 - [ ] Hassfest passed.
-- [ ] HACS validation passed, or explicitly skipped for this private repository.
+- [ ] HACS validation and the checkout license check passed.
 - [ ] JSON state serialization and stale-data behavior checked when applicable.
 - [ ] Documentation updated.
 

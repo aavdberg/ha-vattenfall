@@ -1,6 +1,7 @@
 {
   "domain": "vattenfall",
   "name": "Mijn Vattenfall (unofficial)",
+  "categories": ["energy"],
   "codeowners": ["@aavdberg"],
   "config_flow": true,
   "documentation": "https://github.com/aavdberg/ha-vattenfall",
