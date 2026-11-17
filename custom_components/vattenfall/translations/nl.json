@@ -1,0 +1,144 @@
+{
+  "title": "Mijn Vattenfall (onofficieel)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbind Mijn Vattenfall",
+        "description": "Koppel via normaal inloggen in de browser met automatische tokenvernieuwing, of gebruik de bestaande sessie-import. Alle routes gebruiken niet-ondersteunde private API's.",
+        "menu_options": {"login": "Koppelen via browserlogin met automatische vernieuwing", "oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+      },
+      "login": {
+        "title": "Koppelen via Vattenfall-browserlogin",
+        "description": "Anders dan de diagnosetest koppelt dit je account en bewaart het vernieuwbare tokens in de Home Assistant-configuratie. Beveilig je HA-configuratie en back-ups; de integratie versleutelt tokens niet apart. Je wachtwoord voer je alleen bij Vattenfall in.\n\n1. Open een privevenster in Microsoft Edge, daarna F12 > Netwerk en schakel Logboek behouden in. Open [Vattenfall inloggen]({authorize_url}) in DAT venster. Rond de login en eventuele CAPTCHA/MFA normaal af.\n2. Geef geen toestemming om een mobiele app te openen. Zoek het laatste authorize-antwoord in Netwerk en kopieer de Location-header van het ANTWOORD die begint met vfea://oauth?code=...&state=... (volgorde kan verschillen).\n3. Plak die volledige gevoelige link hieronder binnen 10 minuten. Deel hem nooit in chat en exporteer geen HAR. Gebruik bij een fout de NIEUWE inloglink in dit scherm; elke code wordt slechts eenmaal gebruikt.\n\nHA controleert de ondertekende identiteit en laat je een contractaccount kiezen voordat tarieven worden gecontroleerd en de koppeling wordt opgeslagen. De eerdere diagnostische terugkoppeling kun je niet hergebruiken. Geen mobiele clientvlaggen of omzeiling van beveiligingsstappen.",
+        "data": {"callback_url": "Volledige vfea://oauth-terugkoppellink (gevoelig, eenmalig)"}
+      },
+      "account": {
+        "title": "Bevestig het gewenste contractaccount",
+        "description": "Kies het klantnummer / de contractrekening die je wilt koppelen. Alleen nummers die bij je gecontroleerde login horen worden aangeboden; namen en adressen worden niet bewaard. Opnieuw aanmelden en configureren moeten hetzelfde account behouden. Kies Verzenden om toegang tot tarieven te controleren en de koppeling op te slaan. Annuleer om de tijdelijke gegevens te verwijderen.",
+        "data": {"vf_context": "Klantnummer / contractrekening"}
+      },
+      "oauth": {
+        "title": "Browserlogin en vernieuwen testen (experimenteel)",
+        "description": "Alleen diagnostiek; dit verbindt of wijzigt de integratie NIET. Je voert geen wachtwoord in HA in. Gebruikt de publieke OAuth-client-ID van de Nederlandse app en de geregistreerde vfea://oauth-terugkoppeling, met nieuwe PKCE/state en zonder mobiele clientvlaggen. Ondersteuning van dit HA-gebruik door Vattenfall is onbevestigd.\n\n1. Open een privevenster in Microsoft Edge. Open F12 > Netwerk, schakel Logboek behouden in en open daarna [Vattenfall inloggen]({authorize_url}) in DAT venster. Rond de login en eventuele CAPTCHA/MFA normaal af.\n2. Geef geen toestemming om een mobiele app te openen. De laatste vfea://oauth-link kan op de meeste desktops niet openen. Zoek in Netwerk het laatste authorize-verzoek en kopieer de Location-header van het ANTWOORD die begint met vfea://oauth?code=...&state=... (volgorde kan verschillen).\n3. Plak de volledige link hieronder en kies direct Verzenden. Deel de link nooit in chat of een issue. Laat dit HA-venster open; het verloopt na 10 minuten.\n\nHA controleert state, wisselt de code eenmaal om en test eenmaal vernieuwen. Daarna worden de tokens weggegooid. Er wordt geen integratie aangemaakt of gewijzigd. Elk verzonden formulier verbruikt deze poging, ook een ongeldige link; start zo nodig opnieuw vanuit het resultaatvenster. Gebruik geen HTTP-wirelogging en exporteer geen HAR.",
+        "data": {"callback_url": "Volledige vfea://oauth-terugkoppellink (gevoelig, eenmalig)"}
+      },
+      "oauth_result": {
+        "title": "Resultaat browserlogin en vernieuwen",
+        "description": "Stap: `{stage}`. HTTP-status: `{status}`.\n\nAlleen dit opgeschoonde resultaat blijft tijdelijk bewaard. Terugkoppellink/code en tokens worden niet opgeslagen of gelogd. Tokens kunnen bij Vattenfall geldig blijven; ze worden niet ingetrokken. Er zijn geen accountgegevens opgehaald en je bestaande integratie blijft ongewijzigd. Deze test controleert geen identiteitstoken-handtekeningen en meldt geen account aan. Kies Verzenden voor een NIEUWE poging met een nieuwe link, of Annuleren om te stoppen. Verzenden hier herhaalt geen tokenverzoek."
+      },
+      "password": {
+        "title": "Gebruikersnaam/wachtwoord testen (experimenteel)",
+        "description": "Alleen een diagnosetest: hiermee verbind je de integratie NIET en vervang je geen bestaande sessie, ook niet als Vattenfall het verzoek accepteert. HA verstuurt deze inloggegevens eenmaal naar Vattenfall via een nieuwe websessie. Ze worden niet opgeslagen of vooraf ingevuld. De huidige webroute kan een browsergegenereerde CAPTCHA of MFA vereisen; deze test kan die stappen niet afronden. Er wordt geen CAPTCHA-token gegenereerd. Alleen stap, HTTP-status en een vaste resultaatclassificatie komen in het log. Kies alleen Verzenden als je deze niet-ondersteunde route wilt testen. Schakel geen HTTP-wirelogging in.",
+        "data": {"username": "E-mailadres Mijn Vattenfall", "password": "Wachtwoord Mijn Vattenfall"}
+      },
+      "password_result": {
+        "title": "Resultaat experimentele inlogtest",
+        "description": "Stap: `{stage}`. HTTP-status: `{status}`.\n\nAlleen dit opgeschoonde resultaat blijft tijdelijk bewaard. Geen wachtwoord, sessiesleutel of serverantwoord wordt opgeslagen. Je bestaande integratie blijft ongewijzigd. Kies Verzenden om het resultaat te wissen en terug te gaan naar een leeg testformulier, of Annuleren om te stoppen. Verzenden in DIT venster doet GEEN nieuw inlogverzoek."
+      },
+      "browser": {
+        "title": "Inloggen via Edge",
+        "description": "Laat dit venster open. Installeer de lokale Edge-extensie uit de repository, klik op het extensie-icoon in DIT Home Assistant-tabblad en kies Connect. Log normaal in in het geopende portaaltabblad en selecteer het gewenste account bij Contract. Open de extensie in DAT portaaltabblad en kies Transfer this selected account. Zodra de extensie OK toont, kom je hier terug en kies je Verzenden. Headers kopieren is niet nodig. Koppelen verloopt na 10 minuten. Gebruik bij opnieuw aanmelden HETZELFDE account.\n\nKoppelcode (automatisch gelezen door de extensie): `{pairing_code}`"
+      },
+      "browser_confirm": {
+        "title": "Bevestig de ontvangen sessie",
+        "description": "Sessie ontvangen van Edge. Kies Verzenden om actuele tarieven te controleren en op te slaan. Bevestig bij opnieuw aanmelden of configureren dat je HETZELFDE account selecteerde. Annuleren verwijdert de tijdelijke sessie."
+      },
+      "reauth": {
+        "title": "Vervang de verlopen portaalsessie",
+        "menu_options": {"login": "Koppelen via browserlogin met automatische vernieuwing", "oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
+      },
+      "manual": {
+        "title": "Importeer een Mijn Vattenfall-sessie",
+        "description": "Niet-ondersteunde private API. Log in via Edge, open Ontwikkelhulpprogramma's > Netwerk, herlaad Contract en kopieer deze drie aanvraagheaders uit het contracts-verzoek. Deel ze niet. Sessies kunnen snel verlopen; automatisch inloggen en MFA worden niet uitgevoerd. Zie de README.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Vervang de verlopen portaalsessie",
+        "description": "Log opnieuw in bij Mijn Vattenfall en kopieer alle drie de actuele aanvraagheaders uit het contracts-verzoek. Oude waarden worden nooit vooraf ingevuld.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reconfigure": {
+        "title": "Vervang de portaalsessie",
+        "menu_options": {"login": "Koppelen via browserlogin met automatische vernieuwing", "oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
+        "description": "Kopieer alle drie de nieuwe headers voor hetzelfde geselecteerde contractaccount. De accountidentiteit wordt niet gecontroleerd; voeg voor een ander account een nieuwe integratie toe.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      }
+    },
+    "error": {
+      "connect_invalid_callback": "Ongeldige terugkoppeling of state. Er is niets opgeslagen. Gebruik de nieuwe inloglink en een nieuwe terugkoppeling.",
+      "connect_expired": "De login is verlopen of al verbruikt. Gebruik de nieuwe inloglink.",
+      "connect_provider_denied": "Vattenfall weigert de autorisatie. Beveiligingsstappen en clientbeperkingen worden niet omzeild.",
+      "connect_client_rejected": "Vattenfall weigert deze OAuth-client. Er is niets opgeslagen.",
+      "connect_grant_rejected": "De autorisatiecode is geweigerd of al verbruikt. Gebruik de nieuwe inloglink.",
+      "connect_rate_limited": "Vattenfall beperkt het aantal aanvragen. Wacht voordat je opnieuw probeert.",
+      "connect_unexpected_response": "Onbekend tokenantwoord. Er is geen koppeling opgeslagen.",
+      "connect_cannot_connect": "Vattenfall is niet bereikbaar. Er is niets opgeslagen. Mogelijk moet je opnieuw inloggen.",
+      "connect_no_refresh_token": "Er is geen bruikbaar refresh-token ontvangen; een vernieuwbare koppeling kon niet worden gemaakt.",
+      "connect_identity_invalid": "Identiteitscontrole mislukt (handtekening, uitgever, doelgroep, nonce, geldigheid of verplichte claims). Er zijn geen tokens opgeslagen.",
+      "connect_bootstrap_changed": "De private portaalconfiguratie of het accountantwoord is gewijzigd. Sleutels en accountcontext worden niet gegokt.",
+      "connect_api_rejected": "De account-API weigert de app-identiteit of publieke applicatieconfiguratie. Er is niets opgeslagen.",
+      "connect_wrong_account": "Deze login of selectie hoort niet bij het bedoelde account. Bestaande koppelingen blijven ongewijzigd.",
+      "connect_no_accounts": "Er zijn geen bruikbare contractaccounts ontvangen voor deze gecontroleerde identiteit.",
+      "oauth_invalid_callback": "De link is onjuist, niet de geregistreerde app-terugkoppeling of van een andere poging. Er is geen tokenverzoek gedaan. Start een nieuwe poging.",
+      "oauth_expired": "Deze poging is verlopen of al verbruikt. Start een nieuwe poging; oude terugkoppellinks kunnen niet opnieuw worden gebruikt.",
+      "oauth_provider_denied": "Vattenfall geeft een autorisatiefout voor deze poging. Er is geen tokenverzoek gedaan. Client- en callbackbeperkingen worden niet omzeild.",
+      "oauth_client_rejected": "Het tokenendpoint weigert de client. Deze client of diens aanmeldvereisten kunnen niet zonder meer door HA worden gebruikt. Er zijn geen andere clients of mobiele vlaggen geprobeerd.",
+      "oauth_grant_rejected": "Het tokenendpoint weigert de code of vernieuwing. De link kan verlopen of verbruikt zijn, of Vattenfall vereist een andere autorisatiecontext.",
+      "oauth_rate_limited": "Vattenfall beperkt deze poging. Stop met testen en wacht voordat je opnieuw probeert.",
+      "oauth_unexpected_response": "Het tokenendpoint geeft een onbekend HTTP/JSON-antwoord of tokenformaat. Er wordt geen succes aangenomen en doorverwijzingen worden niet gevolgd.",
+      "oauth_cannot_connect": "Het tokenendpoint was niet bereikbaar of reageerde te laat. Er wordt niet automatisch opnieuw geprobeerd; mogelijk is nieuwe autorisatie nodig.",
+      "oauth_no_refresh_token": "De code is ingewisseld voor een bearer-token, maar er is geen refresh-token. Vernieuwbare aanmelding is niet aangetoond. Er is niets opgeslagen.",
+      "oauth_refresh_succeeded": "Code-uitwisseling en een directe vernieuwing leverden beide bearer-tokens op. Dit bewijst alleen deze test, niet toekomstige vernieuwing, identiteitscontrole of toegang tot de contract-API. Alle tokens zijn weggegooid; er is geen integratie aangemaakt of gewijzigd.",
+      "password_invalid_input": "Vul een niet-leeg e-mailadres (maximaal 254 tekens) en wachtwoord (maximaal 4096 tekens) in.",
+      "password_captcha": "Vattenfall weigert het verzoek met een CAPTCHA-gerelateerde fout. De test is gestopt; CAPTCHA wordt niet omzeild.",
+      "password_mfa": "Vattenfall vereist een MFA-stap. De test is gestopt; er wordt geen MFA-code gevraagd of omzeild.",
+      "password_rejected": "Vattenfall weigert het inlogverzoek. Er is geen sessie opgeslagen. Dit betekent niet noodzakelijk dat je wachtwoord onjuist is.",
+      "password_rate_limited": "Vattenfall beperkt of blokkeert het verzoek. Stop met testen en wacht voordat je opnieuw probeert.",
+      "password_accepted": "Het antwoord meldt geldige inloggegevens en een doorverwijzing. Volledige sessie-import en vernieuwen zijn NIET ingebouwd in deze test. Er is geen integratie aangemaakt of gewijzigd.",
+      "password_unexpected_response": "Vattenfall geeft een onbekend antwoord, ontbrekende sessiegegevens of te veel doorverwijzingen. De test is gestopt zonder succes te gokken.",
+      "password_unsafe_redirect": "Vattenfall geeft een onverwachte doorverwijzing. Deze is niet gevolgd; inloggegevens zijn niet doorgestuurd.",
+      "password_cannot_connect": "De test kon Vattenfall niet bereiken of duurde te lang. Er wordt niet automatisch opnieuw geprobeerd.",
+      "browser_pending": "Rond eerst de overdracht via Edge af en kies daarna Verzenden. Er is nog geen sessie ontvangen.",
+      "browser_timeout": "De koppeling is verlopen. Verbind de extensie opnieuw met deze nieuwe configuratie.",
+      "invalid_browser_session": "De browseroverdracht is geweigerd. Verbind opnieuw vanuit dit HA-tabblad.",
+      "invalid_auth": "Het portaal weigert deze sessieheaders. Log opnieuw in en kopieer alle drie de actuele waarden.",
+      "cannot_connect": "Het contractendpoint kon niet worden gelezen. Controleer de verbinding en probeer opnieuw. Niet-JSON-antwoorden, aanvraaglimieten en servicefouten zijn geen geldige tarieven.",
+      "invalid_tariffs": "Het portaal retourneert niet-ondersteunde, onduidelijke of niet-actuele tariefgegevens. Er worden geen prijzen gegokt."
+    },
+    "abort": {
+      "login_expired": "De login is geannuleerd, vervangen of verlopen. Start een nieuwe koppeling.",
+      "already_configured": "Dit account is al gekoppeld.",
+      "reauth_successful": "Portaalsessie vervangen.",
+      "reconfigure_successful": "Portaalsessie vervangen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_normal": {"name": "Stroom normaaltarief"},
+      "electricity_offpeak": {"name": "Stroom daltarief"},
+      "electricity_single": {"name": "Stroom enkeltarief"},
+      "gas": {"name": "Gastarief"},
+      "last_successful_update": {"name": "Laatste geslaagde update"},
+      "installment": {"name": "Maandelijks termijnbedrag"},
+      "recommended_installment": {"name": "Geadviseerd maandelijks termijnbedrag"},
+      "contract_status": {"name": "Contractstatus"},
+      "previous_month_electricity_consumption": {"name": "Stroomafname vorige maand"},
+      "previous_month_electricity_export": {"name": "Stroomteruglevering vorige maand"},
+      "previous_month_electricity_cost": {"name": "Stroomkosten vorige maand"},
+      "previous_month_gas_consumption": {"name": "Gasverbruik vorige maand"},
+      "previous_month_gas_cost": {"name": "Gaskosten vorige maand"}
+    }
+  }
+}

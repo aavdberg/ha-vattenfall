@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Mijn Vattenfall session companion",
+  "version": "0.3.0",
+  "description": "Transfer a user-initiated Vattenfall session to the chosen Home Assistant setup.",
+  "permissions": ["activeTab", "scripting", "storage", "webRequest", "alarms"],
+  "host_permissions": ["https://www.vattenfall.nl/*", "https://api.vattenfall.nl/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_popup": "popup.html"},
+  "icons": {"256": "icon.png"}
+}

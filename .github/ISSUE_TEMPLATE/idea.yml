@@ -1,0 +1,15 @@
+name: Idea / proposal
+description: Discuss an idea that needs design.
+title: "[Idea]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea and motivation
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design notes and alternatives

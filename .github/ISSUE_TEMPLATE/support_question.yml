@@ -1,0 +1,20 @@
+name: Setup help / question
+description: Ask for help with installation, authentication, or tariff entities.
+title: "[Question]: "
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: Do not share session headers, passwords, cookies, personal data, or actual contract prices.
+  - type: input
+    id: versions
+    attributes:
+      label: Integration and Home Assistant versions
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question and attempted steps
+    validations:
+      required: true

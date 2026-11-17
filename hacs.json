@@ -1,0 +1,7 @@
+{
+  "name": "Mijn Vattenfall (unofficial)",
+  "homeassistant": "2026.9.0",
+  "country": "NL",
+  "zip_release": true,
+  "filename": "vattenfall.zip"
+}

@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a problem with ha-vattenfall.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never include credentials, cookies, account identifiers, addresses, real tariffs, HAR files, or portal response dumps.
+  - type: input
+    id: integration-version
+    attributes:
+      label: Integration version and stable/beta channel
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Actual behavior and impact
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized integration logs
+      description: Remove secrets, personal data and actual prices. Do not enable HTTP wire logging.
+      render: text

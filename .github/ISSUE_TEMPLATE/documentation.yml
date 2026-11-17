@@ -1,0 +1,17 @@
+name: Documentation improvement
+description: Report missing or confusing documentation.
+title: "[Docs]: "
+labels: [documentation]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested documentation change
+    validations:
+      required: true
