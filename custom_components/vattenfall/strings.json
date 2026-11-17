@@ -46,7 +46,15 @@
       "electricity_offpeak": {"name": "Electricity off-peak tariff"},
       "electricity_single": {"name": "Electricity single tariff"},
       "gas": {"name": "Gas tariff"},
-      "last_successful_update": {"name": "Last successful update"}
+      "last_successful_update": {"name": "Last successful update"},
+      "installment": {"name": "Monthly installment"},
+      "recommended_installment": {"name": "Recommended monthly installment"},
+      "contract_status": {"name": "Contract status"},
+      "previous_month_electricity_consumption": {"name": "Electricity imported previous month"},
+      "previous_month_electricity_export": {"name": "Electricity exported previous month"},
+      "previous_month_electricity_cost": {"name": "Electricity cost previous month"},
+      "previous_month_gas_consumption": {"name": "Gas consumption previous month"},
+      "previous_month_gas_cost": {"name": "Gas cost previous month"}
     }
   }
 }

@@ -46,7 +46,15 @@
       "electricity_offpeak": {"name": "Stroom daltarief"},
       "electricity_single": {"name": "Stroom enkeltarief"},
       "gas": {"name": "Gastarief"},
-      "last_successful_update": {"name": "Laatste geslaagde update"}
+      "last_successful_update": {"name": "Laatste geslaagde update"},
+      "installment": {"name": "Maandelijks termijnbedrag"},
+      "recommended_installment": {"name": "Geadviseerd maandelijks termijnbedrag"},
+      "contract_status": {"name": "Contractstatus"},
+      "previous_month_electricity_consumption": {"name": "Stroomafname vorige maand"},
+      "previous_month_electricity_export": {"name": "Stroomteruglevering vorige maand"},
+      "previous_month_electricity_cost": {"name": "Stroomkosten vorige maand"},
+      "previous_month_gas_consumption": {"name": "Gasverbruik vorige maand"},
+      "previous_month_gas_cost": {"name": "Gaskosten vorige maand"}
     }
   }
 }

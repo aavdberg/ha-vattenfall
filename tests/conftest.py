@@ -1,13 +1,15 @@
 """Synthetic contract fixtures; never use downloaded customer responses."""
 
 from datetime import UTC, date, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import ClientSession
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import frame
+
+from custom_components.vattenfall.models import OverviewData
 
 TODAY = date(2026, 7, 1)
 NOW = datetime(2026, 7, 1, 10, tzinfo=UTC)
@@ -65,6 +67,11 @@ async def hass(tmp_path):
         patch(
             "custom_components.vattenfall.config_flow.async_get_clientsession",
             return_value=session,
+        ),
+        patch(
+            "custom_components.vattenfall.api.VattenfallClient.async_get_overview",
+            new_callable=AsyncMock,
+            return_value=OverviewData(()),
         ),
     ):
         yield instance

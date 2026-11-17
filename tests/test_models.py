@@ -65,6 +65,7 @@ def test_single_electricity_and_negative_rate(payload):
         ("total", True),
         ("total", float("nan")),
         ("total", float("inf")),
+        ("total", Decimal("1e1000")),
         ("deliveryRate", None),
         ("energyTax", "unknown"),
         ("periodStart", "invalid"),

@@ -10,6 +10,7 @@ from homeassistant import loader
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry, entity_registry
+from homeassistant.helpers.json import json_bytes
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.setup import async_setup_component
 
@@ -22,7 +23,15 @@ from custom_components.vattenfall.const import (
     CONF_VF_CONTEXT,
 )
 from custom_components.vattenfall.coordinator import VattenfallCoordinator
-from custom_components.vattenfall.models import InvalidTariffData, parse_tariffs
+from custom_components.vattenfall.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
+from custom_components.vattenfall.models import (
+    InvalidTariffData,
+    OverviewData,
+    OverviewMetric,
+    parse_tariffs,
+)
 from custom_components.vattenfall.sensor import (
     DESCRIPTIONS,
     VattenfallTariffSensor,
@@ -137,12 +146,41 @@ async def test_failure_retains_snapshot_but_sensor_is_unavailable(hass, payload)
         assert sensor.native_value is None
         attrs = sensor.extra_state_attributes
         assert attrs["stale"] is True
-        assert attrs["last_known_rate"] == before
+        assert attrs["last_known_rate"] == float(before)
         assert attrs["last_successful_update"] == fetched_at.isoformat()
         client.async_get_tariffs.side_effect = None
         await coordinator.async_refresh()
         assert sensor.available
         assert sensor.extra_state_attributes["stale"] is False
+
+
+@pytest.mark.parametrize("with_snapshot", [False, True])
+async def test_diagnostics_are_json_safe_health_metadata_only(
+    hass, payload, with_snapshot
+):
+    client = MagicMock()
+    client.async_get_tariffs = AsyncMock(return_value=parse_tariffs(payload, TODAY))
+    coordinator = VattenfallCoordinator(hass, client)
+    entry = MagicMock(spec=ConfigEntry)
+    entry.data = SESSION_DATA
+    entry.runtime_data = coordinator
+    with patch("homeassistant.util.dt.utcnow", return_value=NOW):
+        if with_snapshot:
+            await coordinator.async_refresh()
+        client.async_get_tariffs.side_effect = PortalConnectionError("offline")
+        await coordinator.async_refresh()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result == {
+        "last_update_success": False,
+        "last_successful_update": NOW.isoformat() if with_snapshot else None,
+        "tariff_kinds": (
+            ["electricity_normal", "electricity_offpeak", "gas"]
+            if with_snapshot
+            else []
+        ),
+    }
+    encoded = json_bytes(result).decode()
+    assert all(value not in encoded for value in SESSION_DATA.values())
 
 
 async def test_expired_tariff_not_presented_as_current_without_new_data(hass, payload):
@@ -296,6 +334,7 @@ async def test_real_flow_loads_integration_and_registers_sensors(
         assert entry.state is ConfigEntryState.LOADED
         all_states = hass.states.async_all("sensor")
         assert len(all_states) == 4
+        json_bytes([state.as_dict() for state in all_states])
         states = [
             state
             for state in all_states
@@ -310,6 +349,7 @@ async def test_real_flow_loads_integration_and_registers_sensors(
         await entry.runtime_data.async_refresh()
         await hass.async_block_till_done()
         all_states = hass.states.async_all("sensor")
+        json_bytes([state.as_dict() for state in all_states])
         snapshot_state = next(
             state
             for state in all_states
@@ -318,9 +358,7 @@ async def test_real_flow_loads_integration_and_registers_sensors(
         states = [state for state in all_states if state is not snapshot_state]
         assert all(state.state == "unavailable" for state in states)
         assert snapshot_state.attributes["stale"] is True
-        assert snapshot_state.attributes["last_known_tariffs"]["gas"][
-            "rate"
-        ] == Decimal("1.37")
+        assert snapshot_state.attributes["last_known_tariffs"]["gas"]["rate"] == 1.37
 
         fetch.side_effect = PortalAuthError("synthetic expired session")
         await entry.runtime_data.async_refresh()
@@ -347,4 +385,51 @@ async def test_real_flow_loads_integration_and_registers_sensors(
         ]
         assert {state.entity_id for state in states} == entity_ids
         assert sorted(state.state for state in states) == ["0.24", "0.28", "1.37"]
+        overview = entry.runtime_data.overview
+        values = OverviewData(
+            (
+                OverviewMetric("installment", Decimal("135")),
+                OverviewMetric("contract_status", "Active"),
+            )
+        )
+        with patch(
+            "custom_components.vattenfall.api.VattenfallClient.async_get_overview",
+            new_callable=AsyncMock,
+            return_value=values,
+        ) as overview_fetch:
+            await overview.async_refresh()
+            await hass.async_block_till_done()
+            all_states = hass.states.async_all("sensor")
+            json_bytes([state.as_dict() for state in all_states])
+            added = [
+                state
+                for state in all_states
+                if state.entity_id not in entity_ids
+                and state.attributes.get("device_class") != "timestamp"
+            ]
+            assert sorted(state.state for state in added) == ["135", "Active"]
+            overview_ids = {state.entity_id for state in added}
+            overview_fetch.side_effect = PortalConnectionError(
+                "synthetic overview outage"
+            )
+            await overview.async_refresh()
+            await hass.async_block_till_done()
+            assert all(
+                hass.states.get(entity_id).state == "unavailable"
+                for entity_id in overview_ids
+            )
+            assert all(
+                hass.states.get(entity_id).state != "unavailable"
+                for entity_id in entity_ids
+            )
+            diagnostic = hass.states.get(snapshot_state.entity_id)
+            assert diagnostic.attributes["overview_stale"] is True
+            json_bytes([state.as_dict() for state in hass.states.async_all("sensor")])
+            overview_fetch.side_effect = None
+            await overview.async_refresh()
+            await hass.async_block_till_done()
+            assert all(
+                hass.states.get(entity_id).state != "unavailable"
+                for entity_id in overview_ids
+            )
         assert await hass.config_entries.async_unload(entry.entry_id)

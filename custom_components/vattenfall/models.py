@@ -1,10 +1,14 @@
-"""Parse only tariff fields; never retain the complete portal response."""
+"""Parse allowlisted portal fields; never retain complete account responses."""
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from math import isfinite
 from typing import Literal
+
+from .const import CONTRACT_TIMEZONE
 
 Fuel = Literal["electricity", "gas"]
 FUELS: tuple[Fuel, ...] = ("electricity", "gas")
@@ -51,8 +55,8 @@ def _number(value: object) -> Decimal:
         result = Decimal(str(value))
     except InvalidOperation as err:
         raise InvalidTariffData("Invalid numeric tariff") from err
-    if not result.is_finite():
-        raise InvalidTariffData("Non-finite tariff")
+    if not result.is_finite() or not isfinite(float(result)):
+        raise InvalidTariffData("Non-finite or out-of-range tariff")
     return result
 
 
@@ -135,3 +139,165 @@ def parse_tariffs(payload: object, today: date) -> tuple[Tariff, ...]:
     ):
         raise InvalidTariffData("Incomplete or ambiguous electricity tariff blocks")
     return tuple(tariffs)
+
+
+@dataclass(frozen=True)
+class OverviewMetric:
+    """A non-identifying portal value, optionally covering an inclusive period."""
+
+    key: str
+    value: Decimal | str
+    period_start: date | None = None
+    period_end: date | None = None
+    smart_meter: bool | None = None
+
+
+@dataclass(frozen=True, repr=False)
+class Supply:
+    """An ephemeral identifier used only to request the selected supply's usage."""
+
+    fuel: Fuel
+    ean: str
+    smart_meter: bool
+    feed_in: bool
+
+
+@dataclass(frozen=True)
+class OverviewData:
+    """Only public-schema metrics and explicit missing-service indicators."""
+
+    metrics: tuple[OverviewMetric, ...]
+    unavailable_sections: tuple[str, ...] = ()
+
+
+def parse_supplies(payload: object) -> tuple[str, tuple[Supply, ...]]:
+    """Extract energy supplies, discarding identifiers after usage retrieval."""
+    root = _object(payload)
+    status = root.get("contractStatus")
+    if not isinstance(status, str) or not re.fullmatch(
+        r"[A-Za-z][A-Za-z -]{0,63}", status
+    ):
+        raise InvalidTariffData("Unsupported portal contract status")
+    supplies: list[Supply] = []
+    for raw in _array(root.get("products")):
+        product = _object(raw)
+        code = product.get("productCode")
+        if code == "Costs":
+            continue
+        if code not in ("Electricity", "Gas"):
+            raise InvalidTariffData("Unsupported consumption product")
+        fuel: Fuel = "electricity" if code == "Electricity" else "gas"
+        ean = product.get("eanCode")
+        info = _object(product.get("usageProductInformation"))
+        smart_meter = info.get("hasSmartMeter")
+        feed_in = info.get("hasBackdelivery")
+        if (
+            not isinstance(ean, str)
+            or not re.fullmatch(r"\d{18}", ean)
+            or not isinstance(smart_meter, bool)
+            or not isinstance(feed_in, bool)
+            or product.get("calculationType") != "Usage"
+            or any(supply.fuel == fuel for supply in supplies)
+        ):
+            raise InvalidTariffData("Unsupported or ambiguous consumption supply")
+        supplies.append(Supply(fuel, ean, smart_meter, feed_in))
+    return status, tuple(supplies)
+
+
+def parse_installment(
+    payload: object, *, advice: bool = False
+) -> tuple[OverviewMetric, ...]:
+    """Expose monthly installments only when the portal marks them usable."""
+    root = _object(payload)
+    flag = root.get("success" if advice else "active")
+    if not isinstance(flag, bool):
+        raise InvalidTariffData("Missing installment availability flag")
+    if not flag:
+        return ()
+    if type(root.get("termAmountCycle")) is not int or root["termAmountCycle"] != 1:
+        raise InvalidTariffData("Unsupported installment cycle")
+    value = _number(root.get("recommendedTermAmount" if advice else "termAmount"))
+    if value < 0:
+        raise InvalidTariffData("Negative installment amount")
+    return (
+        OverviewMetric("recommended_installment" if advice else "installment", value),
+    )
+
+
+def previous_month(today: date) -> tuple[date, date]:
+    """Return the previous complete Dutch calendar month, inclusive at both ends."""
+    end = today.replace(day=1) - timedelta(days=1)
+    return end.replace(day=1), end
+
+
+def _usage_date(value: object) -> date:
+    if not isinstance(value, str):
+        raise InvalidTariffData("Missing consumption timestamp")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise InvalidTariffData("Invalid consumption timestamp") from None
+    if parsed.tzinfo is None:
+        raise InvalidTariffData("Consumption timestamps must include a timezone")
+    local = parsed.astimezone(CONTRACT_TIMEZONE)
+    if local.hour or local.minute or local.second or local.microsecond:
+        raise InvalidTariffData("Unexpected monthly consumption boundary time")
+    return local.date()
+
+
+def parse_month(
+    payload: object, supply: Supply, start: date, end: date
+) -> tuple[OverviewMetric, ...]:
+    """Select an exact complete month; never turn missing readings into zero."""
+    root = _object(payload)
+    if root.get("product") != ("E" if supply.fuel == "electricity" else "G"):
+        raise InvalidTariffData("Unexpected monthly consumption product")
+    matching = []
+    for raw in _array(root.get("intervals")):
+        row = _object(raw)
+        row_start = _usage_date(row.get("dateFrom"))
+        row_end = _usage_date(row.get("dateTo"))
+        if row_end < row_start:
+            raise InvalidTariffData("Invalid consumption period")
+        if row_start == start and row_end == end:
+            matching.append(row)
+    if len(matching) > 1:
+        raise InvalidTariffData("Ambiguous monthly consumption periods")
+    if not matching or matching[0].get("errorCode") != "NoError":
+        return ()
+    row = matching[0]
+    quantity = _number(
+        row.get("deliveryQuantity" if supply.fuel == "electricity" else "quantity")
+    )
+    if quantity < 0:
+        raise InvalidTariffData("Negative delivered consumption")
+    metrics = [
+        OverviewMetric(
+            f"previous_month_{supply.fuel}_consumption",
+            quantity,
+            start,
+            end,
+            supply.smart_meter,
+        ),
+        OverviewMetric(
+            f"previous_month_{supply.fuel}_cost",
+            _number(row.get("amountInclVat")),
+            start,
+            end,
+            supply.smart_meter,
+        ),
+    ]
+    if supply.fuel == "electricity" and supply.feed_in:
+        exported = _number(row.get("backDeliveryQuantity"))
+        if exported < 0:
+            raise InvalidTariffData("Negative exported consumption")
+        metrics.append(
+            OverviewMetric(
+                "previous_month_electricity_export",
+                exported,
+                start,
+                end,
+                supply.smart_meter,
+            )
+        )
+    return tuple(metrics)

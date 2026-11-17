@@ -1,4 +1,4 @@
-"""Unofficial Mijn Vattenfall contract tariffs."""
+"""Read-only Mijn Vattenfall tariffs and energy overview."""
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -7,7 +7,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import PortalCredentials, VattenfallClient
 from .const import CONF_ACCESS_TOKEN, CONF_SUBSCRIPTION_KEY, CONF_VF_CONTEXT
-from .coordinator import VattenfallCoordinator
+from .coordinator import VattenfallCoordinator, VattenfallOverviewCoordinator
 
 type VattenfallConfigEntry = ConfigEntry[VattenfallCoordinator]
 
@@ -26,6 +26,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VattenfallConfigEntry) -
     )
     coordinator = VattenfallCoordinator(hass, client, entry)
     await coordinator.async_config_entry_first_refresh()
+    coordinator.overview = VattenfallOverviewCoordinator(hass, client, entry)
+    await coordinator.overview.async_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

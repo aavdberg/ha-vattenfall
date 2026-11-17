@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create stable or beta release
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Prepare version and installation archive
+        id: package
+        env:
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import tomllib
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          component = Path("custom_components/vattenfall")
+          manifest = json.loads((component / "manifest.json").read_text())
+          base = manifest["version"]
+          if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", base):
+              raise SystemExit("The manifest must contain a stable SemVer base version")
+          project = tomllib.loads(Path("pyproject.toml").read_text())
+          if project["project"]["version"] != base:
+              raise SystemExit("Manifest and project versions must match")
+          beta = os.environ["RELEASE_BRANCH"] == "dev"
+          tags = subprocess.check_output(["git", "tag", "--list"], text=True).splitlines()
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          version = base
+          if beta:
+              pattern = re.compile(rf"v{re.escape(base)}-beta\.([1-9]\d*)")
+              betas = [(tag, int(match[1])) for tag in tags if (match := pattern.fullmatch(tag))]
+              existing = [
+                  tag for tag, _ in betas
+                  if subprocess.check_output(
+                      ["git", "rev-list", "-n", "1", tag], text=True
+                  ).strip() == sha
+              ]
+              if existing:
+                  version = max(existing, key=lambda tag: int(pattern.fullmatch(tag)[1]))[1:]
+              else:
+                  version = f"{base}-beta.{max((number for _, number in betas), default=0) + 1}"
+          tag = f"v{version}"
+          skip = tag in tags and not beta
+          manifest["version"] = version
+          with ZipFile(Path(os.environ["RUNNER_TEMP"]) / "vattenfall.zip", "w", ZIP_DEFLATED) as archive:
+              tracked = subprocess.check_output(
+                  ["git", "ls-files", "custom_components/vattenfall"], text=True
+              ).splitlines()
+              for filename in tracked:
+                  path = Path(filename)
+                  name = path.relative_to(component).as_posix()
+                  if name == "manifest.json":
+                      archive.writestr(name, json.dumps(manifest, indent=2) + "\n")
+                  else:
+                      archive.write(path, name)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"tag={tag}\nbeta={str(beta).lower()}\nskip={str(skip).lower()}\n")
+          PY
+
+      - name: Publish release asset
+        if: steps.package.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
+          RELEASE_BETA: ${{ steps.package.outputs.beta }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release already published for this commit."
+            exit 0
+          fi
+          args=(--latest)
+          if [ "$RELEASE_BETA" = "true" ]; then
+            args=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP/vattenfall.zip" \
+            --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes "${args[@]}"

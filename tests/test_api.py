@@ -45,6 +45,7 @@ async def test_fixed_endpoint_only_no_redirects_and_no_response_logging(
             "Vf-Context": "synthetic-test-context",
             "Accept": "application/json",
         },
+        params=None,
         allow_redirects=False,
     )
     assert caplog.text == ""
@@ -102,6 +103,12 @@ async def test_schema_drift_is_an_explicit_failure():
     session, _ = mock_session({"unexpected": "synthetic"})
     with pytest.raises(InvalidTariffData):
         await VattenfallClient(session, CREDENTIALS).async_get_tariffs(TODAY)
+
+
+async def test_null_json_is_not_confused_with_an_unsupported_optional_service():
+    session, _ = mock_session(None)
+    with pytest.raises(PortalConnectionError, match="null JSON"):
+        await VattenfallClient(session, CREDENTIALS).async_get_overview(TODAY)
 
 
 @pytest.mark.parametrize("token", ["", "a\r\nInjected: value", "a\0b"])
