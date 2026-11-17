@@ -1,0 +1,52 @@
+{
+  "title": "Mijn Vattenfall (unofficial)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Import a Mijn Vattenfall session",
+        "description": "Unsupported private API. Log in using Edge, open Developer Tools > Network, reload Contract and copy these three request headers from the contracts request. Do not share them. Sessions can expire quickly; no automatic login or MFA is performed. See the README for instructions.",
+        "data": {
+          "access_token": "Authorization (Bearer token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Replace the expired portal session",
+        "description": "Log in to Mijn Vattenfall again and copy all three current request headers from the contracts request. Previous values are never prefilled.",
+        "data": {
+          "access_token": "Authorization (Bearer token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reconfigure": {
+        "title": "Replace the portal session",
+        "description": "Copy all three new headers for the same selected contract account. Reconfigure does not verify account identity; use a new integration entry for another account.",
+        "data": {
+          "access_token": "Authorization (Bearer token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The portal rejected these session headers. Log in again and copy all three current values.",
+      "cannot_connect": "Could not read the contracts endpoint. Check connectivity and try again. Non-JSON responses, rate limits and service failures are not treated as valid tariffs.",
+      "invalid_tariffs": "The portal returned unsupported, ambiguous or non-current tariff data. No prices have been guessed."
+    },
+    "abort": {
+      "reauth_successful": "Portal session replaced successfully.",
+      "reconfigure_successful": "Portal session replaced successfully."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_normal": {"name": "Electricity normal tariff"},
+      "electricity_offpeak": {"name": "Electricity off-peak tariff"},
+      "electricity_single": {"name": "Electricity single tariff"},
+      "gas": {"name": "Gas tariff"},
+      "last_successful_update": {"name": "Last successful update"}
+    }
+  }
+}

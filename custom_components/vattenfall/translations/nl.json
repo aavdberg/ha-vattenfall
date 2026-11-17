@@ -1,0 +1,52 @@
+{
+  "title": "Mijn Vattenfall (onofficieel)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Importeer een Mijn Vattenfall-sessie",
+        "description": "Niet-ondersteunde private API. Log in via Edge, open Ontwikkelhulpprogramma's > Netwerk, herlaad Contract en kopieer deze drie aanvraagheaders uit het contracts-verzoek. Deel ze niet. Sessies kunnen snel verlopen; automatisch inloggen en MFA worden niet uitgevoerd. Zie de README.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Vervang de verlopen portaalsessie",
+        "description": "Log opnieuw in bij Mijn Vattenfall en kopieer alle drie de actuele aanvraagheaders uit het contracts-verzoek. Oude waarden worden nooit vooraf ingevuld.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      },
+      "reconfigure": {
+        "title": "Vervang de portaalsessie",
+        "description": "Kopieer alle drie de nieuwe headers voor hetzelfde geselecteerde contractaccount. De accountidentiteit wordt niet gecontroleerd; voeg voor een ander account een nieuwe integratie toe.",
+        "data": {
+          "access_token": "Authorization (Bearer-token)",
+          "subscription_key": "Ocp-Apim-Subscription-Key",
+          "vf_context": "Vf-Context"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Het portaal weigert deze sessieheaders. Log opnieuw in en kopieer alle drie de actuele waarden.",
+      "cannot_connect": "Het contractendpoint kon niet worden gelezen. Controleer de verbinding en probeer opnieuw. Niet-JSON-antwoorden, aanvraaglimieten en servicefouten zijn geen geldige tarieven.",
+      "invalid_tariffs": "Het portaal retourneert niet-ondersteunde, onduidelijke of niet-actuele tariefgegevens. Er worden geen prijzen gegokt."
+    },
+    "abort": {
+      "reauth_successful": "Portaalsessie vervangen.",
+      "reconfigure_successful": "Portaalsessie vervangen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_normal": {"name": "Stroom normaaltarief"},
+      "electricity_offpeak": {"name": "Stroom daltarief"},
+      "electricity_single": {"name": "Stroom enkeltarief"},
+      "gas": {"name": "Gastarief"},
+      "last_successful_update": {"name": "Laatste geslaagde update"}
+    }
+  }
+}

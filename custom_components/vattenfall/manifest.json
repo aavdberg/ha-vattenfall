@@ -1,0 +1,12 @@
+{
+  "domain": "vattenfall",
+  "name": "Mijn Vattenfall (unofficial)",
+  "codeowners": ["@aavdberg"],
+  "config_flow": true,
+  "documentation": "https://github.com/aavdberg/ha-vattenfall",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/aavdberg/ha-vattenfall/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
