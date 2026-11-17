@@ -337,7 +337,9 @@ semantics. No live portal login is needed. Keep Decimal precision internally and
 expose only JSON-safe attributes.
 The optional companion uses Node.js 24+ for dependency-free tests.
 
-The Python project declares its JWT and test dependencies; HACS/manual copying
+JWT/cryptography are supplied by Home Assistant itself and are not independently
+pinned or installed by this integration. The Python project installs test
+dependencies/metadata only; HACS/manual copying
 installs the integration. Do not register `custom_components` as an editable pip
 namespace: HA expects its search paths to be real directories.
 
