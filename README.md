@@ -17,7 +17,9 @@ The original project icon is not an official company logo.
 > Vattenfall. Sessions are still short-lived: there is **no automatic token refresh**
 > or supported OAuth grant. Manual session import remains available. An optional
 > **experimental password test** sends credentials once from HA to Vattenfall for
-> diagnostics only; it does not connect or update the integration.
+> diagnostics only; it does not connect or update the integration. A separate
+> **experimental app-browser test** checks code exchange and one immediate
+> refresh after normal provider login. It does not save tokens or connect HA.
 
 ## Features
 
@@ -92,6 +94,43 @@ An unmerged PR is not a published HACS release. If no release exists yet, use
 the source branch containing the integration for manual testing.
 
 ## Configuration
+
+### Test app browser login and refresh (experimental)
+
+Select **Test app browser login and refresh (experimental)** in setup,
+reconfiguration or reauthentication. This diagnostic uses the **public OAuth
+client identifier** from the Dutch consumer app and its existing
+`vfea://oauth` callback, not an API key/client secret or an invented HA callback.
+This unsupported use is not provider-approved or guaranteed to work. No mobile
+client flags are added and CAPTCHA/MFA are completed normally with Vattenfall.
+
+1. Keep the HA dialog open. Open a private **Microsoft Edge** window, open
+   **F12 > Network**, enable **Preserve log**, and open the login link from the
+   HA dialog in that private window. Complete the normal login and challenges.
+2. Do not approve opening a mobile app. The final `vfea://oauth` link normally
+   cannot open on a desktop. Find the last `authorize` request in Network and
+   copy its **response Location header**, starting with
+   `vfea://oauth?code=...&state=...` (parameter order may differ).
+3. Paste that entire sensitive link in the masked HA field immediately. Never
+   post it in chat/issues or export a HAR. The HA attempt expires after ten
+   minutes; the provider's code may expire much sooner.
+
+HA verifies exact callback and state, exchanges the code using the original S256
+PKCE verifier, and, if a refresh token is returned, tests one immediate refresh.
+Both requests use the fixed provider HTTPS token endpoint without redirects or
+automatic retries. Each form submission consumes the local attempt, even an
+invalid callback. The result screen's Submit button starts a new attempt; it
+does not repeat a token request.
+
+Only stage (`callback`, `exchange` or `refresh`), HTTP status and fixed outcome
+classification are shown/logged. **No tokens are saved, no identity or account
+API is called and no config entry is created or changed**, even on success.
+Identity-token signatures/claims are not validated or used for authentication
+in this transport-only test. Tokens may remain valid at the provider after
+being discarded locally; the test does not revoke them. A successful immediate
+refresh does not prove long-term refresh or compatibility with contract APIs.
+Full renewable integration authentication remains open in
+[issue #4](https://github.com/aavdberg/ha-vattenfall/issues/4).
 
 ### Test username/password login (experimental)
 

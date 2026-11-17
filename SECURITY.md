@@ -28,6 +28,17 @@ does not create or update an integration entry, and stops on CAPTCHA/MFA.
 Credential POST redirects are never followed. Its warning log contains only
 fixed stage/outcome labels and an HTTP status; never enable HTTP wire logging.
 
+The separate app-browser OAuth test uses the app's public client identifier
+(not a client secret) and exact registered callback. It does not add mobile-client
+flags. Each attempt uses random state and S256 PKCE, expires in ten minutes,
+and is consumed before any exchange. The masked callback field is sensitive.
+Code exchange and a single refresh are sent only to the fixed provider HTTPS
+token endpoint, with no redirects/retries/cookies. Tokens are discarded, not
+stored in config entries. Only fixed stage/outcome and HTTP status are logged.
+It does not authenticate an identity, validate identity-token signatures, read
+account APIs or revoke the temporary grant at the provider. Provider approval
+of this HA usage is unconfirmed.
+
 Do not include passwords, tokens, cookies, account identifiers, addresses, actual
 contract prices, HAR files, or raw portal responses in reports or chat. Enter
 your password only in the local masked test form, not in debugging messages.

@@ -31,6 +31,7 @@ from .const import (
     DOMAIN,
 )
 from .models import InvalidTariffData
+from .oauth import OAUTH_TIMEOUT, OAuthAttempt, OAuthTestResult, async_test_oauth
 
 _SECRET_FIELDS = (CONF_ACCESS_TOKEN, CONF_SUBSCRIPTION_KEY, CONF_VF_CONTEXT)
 BROWSER_TIMEOUT = 600
@@ -78,15 +79,83 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._browser_deadline = 0.0
         self._browser_cancel: CALLBACK_TYPE | None = None
         self._password_result: LoginResult | None = None
+        self._oauth_attempt: OAuthAttempt | None = None
+        self._oauth_cancel: CALLBACK_TYPE | None = None
+        self._oauth_result: OAuthTestResult | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_menu(
-                step_id="user", menu_options=["password", "browser", "manual"]
+                step_id="user", menu_options=["oauth", "password", "browser", "manual"]
             )
         return await self.async_step_manual(user_input)
+
+    @callback
+    def _clear_oauth(self, _now: datetime | None = None) -> None:
+        if self._oauth_cancel:
+            self._oauth_cancel()
+            self._oauth_cancel = None
+        self._oauth_attempt = None
+
+    async def async_step_oauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            attempt = self._oauth_attempt
+            self._clear_oauth()
+            if attempt is None:
+                self._oauth_result = OAuthTestResult("callback", None, "expired")
+            else:
+                self._oauth_result = await async_test_oauth(
+                    attempt, user_input["callback_url"]
+                )
+            result = self._oauth_result
+            _LOGGER.warning(
+                "Experimental OAuth test: stage=%s http=%s outcome=%s",
+                result.stage,
+                result.status if result.status is not None else "none",
+                result.outcome,
+            )
+            return await self.async_step_oauth_result()
+        self._clear_oauth()
+        self._oauth_result = None
+        self._oauth_attempt = OAuthAttempt.create()
+        self._oauth_cancel = async_call_later(
+            self.hass, OAUTH_TIMEOUT, self._clear_oauth
+        )
+        return self.async_show_form(
+            step_id="oauth",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("callback_url"): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    )
+                }
+            ),
+            description_placeholders={
+                "authorize_url": self._oauth_attempt.authorization_url()
+            },
+        )
+
+    async def async_step_oauth_result(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        result = self._oauth_result
+        if user_input is not None or result is None:
+            return await self.async_step_oauth()
+        return self.async_show_form(
+            step_id="oauth_result",
+            data_schema=vol.Schema({}),
+            errors={"base": f"oauth_{result.outcome}"},
+            description_placeholders={
+                "stage": result.stage,
+                "status": str(result.status) if result.status is not None else "-",
+            },
+        )
 
     async def async_step_password(
         self, user_input: dict[str, Any] | None = None
@@ -104,6 +173,8 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             return await self.async_step_password_result()
         self._password_result = None
+        self._clear_oauth()
+        self._oauth_result = None
         return self.async_show_form(
             step_id="password",
             data_schema=vol.Schema(
@@ -177,6 +248,8 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_remove(self) -> None:
         self._clear_browser()
         self._password_result = None
+        self._clear_oauth()
+        self._oauth_result = None
 
     @callback
     def _browser_form(self, errors: dict[str, str] | None = None) -> ConfigFlowResult:
@@ -245,7 +318,8 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
         return self.async_show_menu(
-            step_id="reauth", menu_options=["password", "browser", "reauth_confirm"]
+            step_id="reauth",
+            menu_options=["oauth", "password", "browser", "reauth_confirm"],
         )
 
     async def async_step_reauth_confirm(
@@ -269,7 +343,8 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_menu(
-                step_id="reconfigure", menu_options=["password", "browser", "manual"]
+                step_id="reconfigure",
+                menu_options=["oauth", "password", "browser", "manual"],
             )
         errors: dict[str, str] = {}
         if user_input is not None:

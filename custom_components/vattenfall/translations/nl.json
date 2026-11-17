@@ -5,7 +5,16 @@
       "user": {
         "title": "Verbind Mijn Vattenfall",
         "description": "Gebruik de lokale Edge-extensie na normaal inloggen, of importeer headers handmatig. Niet-ondersteunde private API; sessies verlopen.",
-        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+        "menu_options": {"oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+      },
+      "oauth": {
+        "title": "Browserlogin en vernieuwen testen (experimenteel)",
+        "description": "Alleen diagnostiek; dit verbindt of wijzigt de integratie NIET. Je voert geen wachtwoord in HA in. Gebruikt de publieke OAuth-client-ID van de Nederlandse app en de geregistreerde vfea://oauth-terugkoppeling, met nieuwe PKCE/state en zonder mobiele clientvlaggen. Ondersteuning van dit HA-gebruik door Vattenfall is onbevestigd.\n\n1. Open een privevenster in Microsoft Edge. Open F12 > Netwerk, schakel Logboek behouden in en open daarna [Vattenfall inloggen]({authorize_url}) in DAT venster. Rond de login en eventuele CAPTCHA/MFA normaal af.\n2. Geef geen toestemming om een mobiele app te openen. De laatste vfea://oauth-link kan op de meeste desktops niet openen. Zoek in Netwerk het laatste authorize-verzoek en kopieer de Location-header van het ANTWOORD die begint met vfea://oauth?code=...&state=... (volgorde kan verschillen).\n3. Plak de volledige link hieronder en kies direct Verzenden. Deel de link nooit in chat of een issue. Laat dit HA-venster open; het verloopt na 10 minuten.\n\nHA controleert state, wisselt de code eenmaal om en test eenmaal vernieuwen. Daarna worden de tokens weggegooid. Er wordt geen integratie aangemaakt of gewijzigd. Elk verzonden formulier verbruikt deze poging, ook een ongeldige link; start zo nodig opnieuw vanuit het resultaatvenster. Gebruik geen HTTP-wirelogging en exporteer geen HAR.",
+        "data": {"callback_url": "Volledige vfea://oauth-terugkoppellink (gevoelig, eenmalig)"}
+      },
+      "oauth_result": {
+        "title": "Resultaat browserlogin en vernieuwen",
+        "description": "Stap: `{stage}`. HTTP-status: `{status}`.\n\nAlleen dit opgeschoonde resultaat blijft tijdelijk bewaard. Terugkoppellink/code en tokens worden niet opgeslagen of gelogd. Tokens kunnen bij Vattenfall geldig blijven; ze worden niet ingetrokken. Er zijn geen accountgegevens opgehaald en je bestaande integratie blijft ongewijzigd. Deze test controleert geen identiteitstoken-handtekeningen en meldt geen account aan. Kies Verzenden voor een NIEUWE poging met een nieuwe link, of Annuleren om te stoppen. Verzenden hier herhaalt geen tokenverzoek."
       },
       "password": {
         "title": "Gebruikersnaam/wachtwoord testen (experimenteel)",
@@ -26,7 +35,7 @@
       },
       "reauth": {
         "title": "Vervang de verlopen portaalsessie",
-        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
+        "menu_options": {"oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
       },
       "manual": {
         "title": "Importeer een Mijn Vattenfall-sessie",
@@ -48,7 +57,7 @@
       },
       "reconfigure": {
         "title": "Vervang de portaalsessie",
-        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
+        "menu_options": {"oauth": "App-browserlogin en vernieuwen testen (experimenteel)", "password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
         "description": "Kopieer alle drie de nieuwe headers voor hetzelfde geselecteerde contractaccount. De accountidentiteit wordt niet gecontroleerd; voeg voor een ander account een nieuwe integratie toe.",
         "data": {
           "access_token": "Authorization (Bearer-token)",
@@ -58,6 +67,16 @@
       }
     },
     "error": {
+      "oauth_invalid_callback": "De link is onjuist, niet de geregistreerde app-terugkoppeling of van een andere poging. Er is geen tokenverzoek gedaan. Start een nieuwe poging.",
+      "oauth_expired": "Deze poging is verlopen of al verbruikt. Start een nieuwe poging; oude terugkoppellinks kunnen niet opnieuw worden gebruikt.",
+      "oauth_provider_denied": "Vattenfall geeft een autorisatiefout voor deze poging. Er is geen tokenverzoek gedaan. Client- en callbackbeperkingen worden niet omzeild.",
+      "oauth_client_rejected": "Het tokenendpoint weigert de client. Deze client of diens aanmeldvereisten kunnen niet zonder meer door HA worden gebruikt. Er zijn geen andere clients of mobiele vlaggen geprobeerd.",
+      "oauth_grant_rejected": "Het tokenendpoint weigert de code of vernieuwing. De link kan verlopen of verbruikt zijn, of Vattenfall vereist een andere autorisatiecontext.",
+      "oauth_rate_limited": "Vattenfall beperkt deze poging. Stop met testen en wacht voordat je opnieuw probeert.",
+      "oauth_unexpected_response": "Het tokenendpoint geeft een onbekend HTTP/JSON-antwoord of tokenformaat. Er wordt geen succes aangenomen en doorverwijzingen worden niet gevolgd.",
+      "oauth_cannot_connect": "Het tokenendpoint was niet bereikbaar of reageerde te laat. Er wordt niet automatisch opnieuw geprobeerd; mogelijk is nieuwe autorisatie nodig.",
+      "oauth_no_refresh_token": "De code is ingewisseld voor een bearer-token, maar er is geen refresh-token. Vernieuwbare aanmelding is niet aangetoond. Er is niets opgeslagen.",
+      "oauth_refresh_succeeded": "Code-uitwisseling en een directe vernieuwing leverden beide bearer-tokens op. Dit bewijst alleen deze test, niet toekomstige vernieuwing, identiteitscontrole of toegang tot de contract-API. Alle tokens zijn weggegooid; er is geen integratie aangemaakt of gewijzigd.",
       "password_invalid_input": "Vul een niet-leeg e-mailadres (maximaal 254 tekens) en wachtwoord (maximaal 4096 tekens) in.",
       "password_captcha": "Vattenfall weigert het verzoek met een CAPTCHA-gerelateerde fout. De test is gestopt; CAPTCHA wordt niet omzeild.",
       "password_mfa": "Vattenfall vereist een MFA-stap. De test is gestopt; er wordt geen MFA-code gevraagd of omzeild.",

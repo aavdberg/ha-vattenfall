@@ -33,6 +33,7 @@ from custom_components.vattenfall.models import (
     OverviewMetric,
     parse_tariffs,
 )
+from custom_components.vattenfall.oauth import OAuthTestResult
 from custom_components.vattenfall.sensor import (
     DESCRIPTIONS,
     VattenfallTariffSensor,
@@ -55,6 +56,65 @@ def flow(hass):
     result.hass = hass
     result.context = {"source": "user"}
     return result
+
+
+@pytest.mark.parametrize("source", ["user", "reauth", "reconfigure"])
+async def test_oauth_test_is_one_use_and_never_updates_an_entry(hass, source, caplog):
+    config_flow = flow(hass)
+    config_flow.context = {"source": source}
+    step = getattr(config_flow, f"async_step_{source}")
+    menu = await step({}) if source == "reauth" else await step()
+    assert "oauth" in menu["menu_options"]
+    form = await config_flow.async_step_oauth()
+    attempt = config_flow._oauth_attempt
+    callback_url = f"vfea://oauth?code=synthetic-code&state={attempt.state}"
+    assert attempt.verifier not in str(form)
+    with (
+        patch(
+            "custom_components.vattenfall.config_flow.async_test_oauth",
+            return_value=OAuthTestResult("refresh", 200, "refresh_succeeded"),
+        ) as probe,
+        patch.object(config_flow, "_finish") as finish,
+        patch.object(config_flow, "async_update_reload_and_abort") as update,
+    ):
+        result = await config_flow.async_step_oauth({"callback_url": callback_url})
+        assert result["step_id"] == "oauth_result"
+        assert result["errors"] == {"base": "oauth_refresh_succeeded"}
+        assert config_flow._oauth_attempt is None
+        assert config_flow._oauth_cancel is None
+        assert "stage=refresh http=200 outcome=refresh_succeeded" in caplog.text
+        for secret in (callback_url, attempt.verifier, attempt.state):
+            assert secret not in str(result)
+            assert secret not in repr(vars(config_flow))
+            assert secret not in caplog.text
+        replay = await config_flow.async_step_oauth({"callback_url": callback_url})
+        assert replay["errors"] == {"base": "oauth_expired"}
+        probe.assert_awaited_once_with(attempt, callback_url)
+        finish.assert_not_called()
+        update.assert_not_called()
+        again = await config_flow.async_step_oauth_result({})
+        assert again["step_id"] == "oauth"
+        assert config_flow._oauth_attempt.state != attempt.state
+        assert probe.await_count == 1
+    config_flow.async_remove()
+    assert config_flow._oauth_attempt is None
+    assert config_flow._oauth_result is None
+
+
+async def test_oauth_timer_expiry_discards_pkce_before_callback(hass):
+    config_flow = flow(hass)
+    with (
+        patch("custom_components.vattenfall.config_flow.async_call_later") as timer,
+        patch("custom_components.vattenfall.config_flow.async_test_oauth") as probe,
+    ):
+        await config_flow.async_step_oauth()
+        timer.call_args.args[2](None)
+        result = await config_flow.async_step_oauth(
+            {"callback_url": "vfea://oauth?code=synthetic-code"}
+        )
+    assert result["errors"] == {"base": "oauth_expired"}
+    assert config_flow._oauth_attempt is None
+    probe.assert_not_called()
 
 
 @pytest.mark.parametrize("source", ["user", "reauth", "reconfigure"])
@@ -499,6 +559,38 @@ async def test_registered_password_flow_returns_diagnostics_not_an_entry(
         assert again["step_id"] == "password"
         assert probe.await_count == 1
         hass.config_entries.flow.async_abort(again["flow_id"])
+
+
+async def test_registered_oauth_flow_displays_link_and_discards_attempt(hass, tmp_path):
+    (tmp_path / "custom_components").symlink_to(
+        Path(__file__).parents[1] / "custom_components", target_is_directory=True
+    )
+    loader.async_setup(hass)
+    await hass.config_entries.async_initialize()
+    with patch(
+        "custom_components.vattenfall.config_flow.async_test_oauth",
+        return_value=OAuthTestResult("exchange", 401, "client_rejected"),
+    ):
+        menu = await hass.config_entries.flow.async_init(
+            "vattenfall", context={"source": "user"}
+        )
+        login = await hass.config_entries.flow.async_configure(
+            menu["flow_id"], {"next_step_id": "oauth"}
+        )
+        assert login["step_id"] == "oauth"
+        assert "code_challenge=" in login["description_placeholders"]["authorize_url"]
+        result = await hass.config_entries.flow.async_configure(
+            login["flow_id"],
+            {"callback_url": "vfea://oauth?code=synthetic-code"},
+        )
+        assert result["errors"] == {"base": "oauth_client_rejected"}
+        assert result["description_placeholders"] == {
+            "stage": "exchange",
+            "status": "401",
+        }
+        assert hass.config_entries.async_entries("vattenfall") == []
+        assert "synthetic-code" not in str(result)
+        hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 @pytest.mark.parametrize("method", ["manual", "browser"])

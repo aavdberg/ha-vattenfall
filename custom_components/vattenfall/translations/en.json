@@ -5,7 +5,16 @@
       "user": {
         "title": "Connect Mijn Vattenfall",
         "description": "Use the local Edge companion after normal portal login, or import headers manually. Private, unsupported API; sessions expire.",
-        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in using Edge", "manual": "Import session headers manually"}
+        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in using Edge", "manual": "Import session headers manually"}
+      },
+      "oauth": {
+        "title": "Test browser login and refresh (experimental)",
+        "description": "Diagnostic only; this does NOT connect or update the integration. No password is entered in HA. Uses the public Dutch-app OAuth identifier and its registered vfea://oauth callback, with fresh PKCE/state and no mobile-client flags. Provider support for this HA usage is unconfirmed.\n\n1. Open a private Microsoft Edge window. Open F12 > Network, enable Preserve log, then open [Vattenfall login]({authorize_url}) in THAT window. Complete login and any CAPTCHA/MFA normally.\n2. Do not approve opening a mobile app. The final vfea://oauth link cannot open on most desktops. In Network, find the last authorize request and copy its RESPONSE Location header starting with vfea://oauth?code=...&state=... (parameter order may differ).\n3. Paste the entire link below and submit immediately. Never share it in chat or an issue. Keep this HA dialog open; it expires in 10 minutes.\n\nHA checks state, exchanges the code once and tests refresh once, then discards tokens. No entry is created or changed. Every submission consumes this attempt, even an invalid link; restart from the result screen if needed. Do not use HTTP wire logging or export a HAR.",
+        "data": {"callback_url": "Full vfea://oauth callback link (sensitive, one use)"}
+      },
+      "oauth_result": {
+        "title": "Browser login and refresh test result",
+        "description": "Stage: `{stage}`. HTTP status: `{status}`.\n\nOnly this sanitized result is retained. The callback/code and tokens are not saved or logged. Tokens may remain valid at the provider; no revocation is attempted. No account data was fetched and your existing integration is unchanged. This test does not validate identity-token signatures or establish an authenticated account. Submit to start a NEW attempt with a new link; cancel to finish. Submitting here does not repeat the token request."
       },
       "password": {
         "title": "Test username/password login (experimental)",
@@ -26,7 +35,7 @@
       },
       "reauth": {
         "title": "Replace the expired portal session",
-        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
+        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
       },
       "manual": {
         "title": "Import a Mijn Vattenfall session",
@@ -48,7 +57,7 @@
       },
       "reconfigure": {
         "title": "Replace the portal session",
-        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "manual": "Import session headers manually"},
+        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "manual": "Import session headers manually"},
         "description": "Copy all three new headers for the same selected contract account. Reconfigure does not verify account identity; use a new integration entry for another account.",
         "data": {
           "access_token": "Authorization (Bearer token)",
@@ -58,6 +67,16 @@
       }
     },
     "error": {
+      "oauth_invalid_callback": "The link is malformed, not the registered app callback, or belongs to a different attempt. No token request was sent. Start a new attempt.",
+      "oauth_expired": "This attempt expired or was already consumed. Start a new attempt; old callback links cannot be reused.",
+      "oauth_provider_denied": "Vattenfall returned an authorization error for this attempt. No token request was sent. No callback/client restrictions are bypassed.",
+      "oauth_client_rejected": "The token endpoint rejected the client. This client or its authentication requirements cannot be assumed usable by HA. No alternative client or mobile flags were tried.",
+      "oauth_grant_rejected": "The token endpoint rejected the code or refresh grant. The link may have expired or been consumed, or the provider may require a different authorization context.",
+      "oauth_rate_limited": "Vattenfall rate-limited this attempt. Stop testing and wait before another attempt.",
+      "oauth_unexpected_response": "The token endpoint returned an unsupported HTTP/JSON response or token shape. No success is assumed and redirects are not followed.",
+      "oauth_cannot_connect": "Could not reach the token endpoint or timed out. No automatic retry is performed; a new authorization may be needed.",
+      "oauth_no_refresh_token": "Code exchange returned a bearer token, but no refresh token. Renewable authentication is not established. Nothing was saved.",
+      "oauth_refresh_succeeded": "Code exchange and one immediate refresh both returned bearer tokens. This verifies the test exchange only, not future refresh, identity validation or contract API access. All tokens were discarded; no integration was created or changed.",
       "password_invalid_input": "Enter a nonempty email address (maximum 254 characters) and password (maximum 4096 characters).",
       "password_captcha": "Vattenfall rejected the request with a CAPTCHA-related error. The test stopped; CAPTCHA is not bypassed.",
       "password_mfa": "Vattenfall requires an MFA step. The test stopped; no MFA code is requested or bypassed.",
