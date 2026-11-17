@@ -5,7 +5,16 @@
       "user": {
         "title": "Verbind Mijn Vattenfall",
         "description": "Gebruik de lokale Edge-extensie na normaal inloggen, of importeer headers handmatig. Niet-ondersteunde private API; sessies verlopen.",
-        "menu_options": {"browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+      },
+      "password": {
+        "title": "Gebruikersnaam/wachtwoord testen (experimenteel)",
+        "description": "Alleen een diagnosetest: hiermee verbind je de integratie NIET en vervang je geen bestaande sessie, ook niet als Vattenfall het verzoek accepteert. HA verstuurt deze inloggegevens eenmaal naar Vattenfall via een nieuwe websessie. Ze worden niet opgeslagen of vooraf ingevuld. De huidige webroute kan een browsergegenereerde CAPTCHA of MFA vereisen; deze test kan die stappen niet afronden. Er wordt geen CAPTCHA-token gegenereerd. Alleen stap, HTTP-status en een vaste resultaatclassificatie komen in het log. Kies alleen Verzenden als je deze niet-ondersteunde route wilt testen. Schakel geen HTTP-wirelogging in.",
+        "data": {"username": "E-mailadres Mijn Vattenfall", "password": "Wachtwoord Mijn Vattenfall"}
+      },
+      "password_result": {
+        "title": "Resultaat experimentele inlogtest",
+        "description": "Stap: `{stage}`. HTTP-status: `{status}`.\n\nAlleen dit opgeschoonde resultaat blijft tijdelijk bewaard. Geen wachtwoord, sessiesleutel of serverantwoord wordt opgeslagen. Je bestaande integratie blijft ongewijzigd. Kies Verzenden om het resultaat te wissen en terug te gaan naar een leeg testformulier, of Annuleren om te stoppen. Verzenden in DIT venster doet GEEN nieuw inlogverzoek."
       },
       "browser": {
         "title": "Inloggen via Edge",
@@ -17,7 +26,7 @@
       },
       "reauth": {
         "title": "Vervang de verlopen portaalsessie",
-        "menu_options": {"browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
+        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
       },
       "manual": {
         "title": "Importeer een Mijn Vattenfall-sessie",
@@ -39,7 +48,7 @@
       },
       "reconfigure": {
         "title": "Vervang de portaalsessie",
-        "menu_options": {"browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
+        "menu_options": {"password": "Inloggen met gebruikersnaam/wachtwoord testen (experimenteel)", "browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
         "description": "Kopieer alle drie de nieuwe headers voor hetzelfde geselecteerde contractaccount. De accountidentiteit wordt niet gecontroleerd; voeg voor een ander account een nieuwe integratie toe.",
         "data": {
           "access_token": "Authorization (Bearer-token)",
@@ -49,6 +58,15 @@
       }
     },
     "error": {
+      "password_invalid_input": "Vul een niet-leeg e-mailadres (maximaal 254 tekens) en wachtwoord (maximaal 4096 tekens) in.",
+      "password_captcha": "Vattenfall weigert het verzoek met een CAPTCHA-gerelateerde fout. De test is gestopt; CAPTCHA wordt niet omzeild.",
+      "password_mfa": "Vattenfall vereist een MFA-stap. De test is gestopt; er wordt geen MFA-code gevraagd of omzeild.",
+      "password_rejected": "Vattenfall weigert het inlogverzoek. Er is geen sessie opgeslagen. Dit betekent niet noodzakelijk dat je wachtwoord onjuist is.",
+      "password_rate_limited": "Vattenfall beperkt of blokkeert het verzoek. Stop met testen en wacht voordat je opnieuw probeert.",
+      "password_accepted": "Het antwoord meldt geldige inloggegevens en een doorverwijzing. Volledige sessie-import en vernieuwen zijn NIET ingebouwd in deze test. Er is geen integratie aangemaakt of gewijzigd.",
+      "password_unexpected_response": "Vattenfall geeft een onbekend antwoord, ontbrekende sessiegegevens of te veel doorverwijzingen. De test is gestopt zonder succes te gokken.",
+      "password_unsafe_redirect": "Vattenfall geeft een onverwachte doorverwijzing. Deze is niet gevolgd; inloggegevens zijn niet doorgestuurd.",
+      "password_cannot_connect": "De test kon Vattenfall niet bereiken of duurde te lang. Er wordt niet automatisch opnieuw geprobeerd.",
       "browser_pending": "Rond eerst de overdracht via Edge af en kies daarna Verzenden. Er is nog geen sessie ontvangen.",
       "browser_timeout": "De koppeling is verlopen. Verbind de extensie opnieuw met deze nieuwe configuratie.",
       "invalid_browser_session": "De browseroverdracht is geweigerd. Verbind opnieuw vanuit dit HA-tabblad.",

@@ -21,6 +21,15 @@ no portal credentials or HA tokens in extension storage. Use HTTPS except for
 local loopback testing; trust the HA origin before connecting. Disconnect cannot
 retract an already-sent request: cancel the HA flow to discard unconfirmed data.
 
-Do not submit passwords, tokens, cookies, account identifiers, addresses, actual
-contract prices, HAR files, or raw portal responses. Tests must use invented data.
+The experimental password test is opt-in and diagnostic only. It submits a
+password once to the fixed provider identity endpoint, using an isolated
+temporary cookie jar. It does not persist the username/password or session,
+does not create or update an integration entry, and stops on CAPTCHA/MFA.
+Credential POST redirects are never followed. Its warning log contains only
+fixed stage/outcome labels and an HTTP status; never enable HTTP wire logging.
+
+Do not include passwords, tokens, cookies, account identifiers, addresses, actual
+contract prices, HAR files, or raw portal responses in reports or chat. Enter
+your password only in the local masked test form, not in debugging messages.
+Automated tests must use invented data.
 Diagnostics are an allowlist of health metadata, without credentials or tariffs.

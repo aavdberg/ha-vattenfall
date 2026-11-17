@@ -5,7 +5,16 @@
       "user": {
         "title": "Connect Mijn Vattenfall",
         "description": "Use the local Edge companion after normal portal login, or import headers manually. Private, unsupported API; sessions expire.",
-        "menu_options": {"browser": "Log in using Edge", "manual": "Import session headers manually"}
+        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in using Edge", "manual": "Import session headers manually"}
+      },
+      "password": {
+        "title": "Test username/password login (experimental)",
+        "description": "Diagnostic test only: this does NOT connect the integration or replace an existing session, even if the provider accepts the request. HA sends these credentials once to Vattenfall through a fresh web session. They are not saved or prefilled. The current web route may require browser-generated CAPTCHA or MFA; this test cannot complete those challenges. No CAPTCHA token is generated. Only the stage, HTTP status and a fixed result classification are logged. Submit only if you want to test this unsupported route. Do not enable HTTP wire logging.",
+        "data": {"username": "Mijn Vattenfall email address", "password": "Mijn Vattenfall password"}
+      },
+      "password_result": {
+        "title": "Experimental login test result",
+        "description": "Stage: `{stage}`. HTTP status: `{status}`.\n\nOnly this sanitized result is retained. No password, session key or provider response is saved. Your existing integration is unchanged. Submit to clear this result and return to an empty test form; cancel to finish. Submitting here does NOT send another login request."
       },
       "browser": {
         "title": "Log in using Edge",
@@ -17,7 +26,7 @@
       },
       "reauth": {
         "title": "Replace the expired portal session",
-        "menu_options": {"browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
+        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
       },
       "manual": {
         "title": "Import a Mijn Vattenfall session",
@@ -39,7 +48,7 @@
       },
       "reconfigure": {
         "title": "Replace the portal session",
-        "menu_options": {"browser": "Log in again using Edge", "manual": "Import session headers manually"},
+        "menu_options": {"password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "manual": "Import session headers manually"},
         "description": "Copy all three new headers for the same selected contract account. Reconfigure does not verify account identity; use a new integration entry for another account.",
         "data": {
           "access_token": "Authorization (Bearer token)",
@@ -49,6 +58,15 @@
       }
     },
     "error": {
+      "password_invalid_input": "Enter a nonempty email address (maximum 254 characters) and password (maximum 4096 characters).",
+      "password_captcha": "Vattenfall rejected the request with a CAPTCHA-related error. The test stopped; CAPTCHA is not bypassed.",
+      "password_mfa": "Vattenfall requires an MFA step. The test stopped; no MFA code is requested or bypassed.",
+      "password_rejected": "Vattenfall rejected the login request. No session was saved. This does not necessarily mean your password is wrong.",
+      "password_rate_limited": "Vattenfall rate-limited or blocked the request. Stop testing and wait before another attempt.",
+      "password_accepted": "The response reports valid credentials and a redirect. End-to-end session import and refresh are NOT implemented by this test. No integration was created or changed.",
+      "password_unexpected_response": "The provider returned an unsupported response, missing session state or too many redirects. The test stopped without guessing success.",
+      "password_unsafe_redirect": "The provider returned an unexpected redirect. It was not followed and credentials were not forwarded.",
+      "password_cannot_connect": "The test could not reach Vattenfall or timed out. No automatic retry is performed.",
       "browser_pending": "Finish the Edge transfer first, then submit. No session has been received yet.",
       "browser_timeout": "Pairing expired. Connect the extension again using this new setup.",
       "invalid_browser_session": "The browser handoff was rejected. Reconnect from this HA tab.",

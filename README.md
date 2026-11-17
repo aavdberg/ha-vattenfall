@@ -13,9 +13,11 @@ Not affiliated with, endorsed by, or supported by Vattenfall or Home Assistant.
 The original project icon is not an official company logo.
 
 > **Authentication:** the optional local Edge companion lets you log in normally
-> in the portal and transfer the session without copying headers. Passwords and
-> MFA stay with Vattenfall. Sessions are still short-lived: there is **no automatic
-> token refresh** or supported OAuth grant. Manual session import remains available.
+> in the portal and transfer the session without copying headers. MFA stays with
+> Vattenfall. Sessions are still short-lived: there is **no automatic token refresh**
+> or supported OAuth grant. Manual session import remains available. An optional
+> **experimental password test** sends credentials once from HA to Vattenfall for
+> diagnostics only; it does not connect or update the integration.
 
 ## Features
 
@@ -91,6 +93,29 @@ the source branch containing the integration for manual testing.
 
 ## Configuration
 
+### Test username/password login (experimental)
+
+Choose **Add integration > Mijn Vattenfall > Test username/password login
+(experimental)**, or select that option under **Reconfigure** / reauthentication.
+Enter your credentials locally in HA, never in an issue or chat. The password
+field is masked. Submitting starts a fresh, isolated cookie session through the
+real portal OAuth/PKCE flow, then sends one form-encoded credential request to
+Vattenfall. Only the fixed provider HTTPS origins are allowed for redirects;
+the credential POST is never automatically redirected or retried.
+
+This is a **diagnostic test, not working end-to-end sign-in**. No integration is
+created, no existing session is changed, and username/password and temporary
+cookies are not persisted. No CAPTCHA token is generated; CAPTCHA/MFA responses
+stop the test. Even an accepted response does not import a session or enable
+refresh. Native sign-in remains tracked in [issue #4](https://github.com/aavdberg/ha-vattenfall/issues/4).
+
+The result screen and a warning in the HA log show only the stage (`portal`,
+`authorize` or `credentials`), HTTP status and a fixed outcome classification.
+Share those three values for debugging, not HTTP bodies, headers or screenshots
+of credentials. **Do not enable HTTP wire/debug logging.** Submit on the result
+screen only clears it and opens an empty form; it does not repeat the request.
+Cancel to finish. If rate-limited or blocked, stop testing and wait.
+
 ### Log in using Edge (local companion)
 
 Install the unpacked [Edge companion](edge-extension/README.md) once. In HA choose
@@ -141,8 +166,8 @@ next refresh, not necessarily exactly at midnight.
 
 - **Expired session / HTTP 401 or 403 / redirect:** HA requests reauthentication.
   Log in through the companion again, or replace all three headers manually.
-  **Reconfigure** can replace them proactively. Passwords and MFA codes never go
-  through this integration.
+  **Reconfigure** can replace them proactively. The optional password test does
+  not repair an expired session; MFA codes never go through this integration.
 - **Network, rate limit, server or schema failure:** the affected entities become
   unavailable instead of presenting stale numbers as current.
 - **Missing monthly readings or unsuccessful installment advice:** no zero or
@@ -170,12 +195,18 @@ encrypted**, and masked fields are not encryption. Protect administrator access,
 `.storage`, backups and filesystem permissions. Revoke exposed sessions where
 possible; logout alone is not guaranteed to invalidate a token.
 
-Only read-only requests to fixed Vattenfall HTTPS services are made: contract
+Normal updates make only read-only requests to fixed Vattenfall HTTPS services: contract
 tariffs, installment/advice, consumption availability and the selected supplies'
 previous-month summaries. Redirects are not followed. Supply identifiers are used
 transiently to request usage and are discarded before snapshots/entities.
 There are no invoice/document downloads, write operations, telemetry or arbitrary
 URL configuration.
+
+The explicitly selected experimental password test additionally visits the
+provider's login pages and posts credentials once. It uses a separate temporary
+cookie jar, cleared when the test ends. It does not save credentials, response
+bodies, redirects or sessions, and does not change config entries. The HA log
+contains only locally defined stage/outcome labels and an HTTP status.
 
 Diagnostics export only allowlisted health metadata: timestamps, success flags,
 metric names and unavailable-section names. They exclude credentials, identifiers,

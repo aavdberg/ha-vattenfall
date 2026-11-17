@@ -16,6 +16,7 @@ from homeassistant.setup import async_setup_component
 
 from custom_components.vattenfall import async_setup_entry, async_unload_entry
 from custom_components.vattenfall.api import PortalAuthError, PortalConnectionError
+from custom_components.vattenfall.auth import LoginResult
 from custom_components.vattenfall.config_flow import VattenfallConfigFlow
 from custom_components.vattenfall.const import (
     CONF_ACCESS_TOKEN,
@@ -54,6 +55,49 @@ def flow(hass):
     result.hass = hass
     result.context = {"source": "user"}
     return result
+
+
+@pytest.mark.parametrize("source", ["user", "reauth", "reconfigure"])
+async def test_password_test_is_available_without_saving_or_logging_secrets(
+    hass, source, caplog
+):
+    config_flow = flow(hass)
+    config_flow.context = {"source": source}
+    step = getattr(config_flow, f"async_step_{source}")
+    menu = await step({}) if source == "reauth" else await step()
+    assert "password" in menu["menu_options"]
+    credentials = {
+        "username": "synthetic-user@example.invalid",
+        "password": "synthetic-password-never-log",
+    }
+    with (
+        patch(
+            "custom_components.vattenfall.config_flow.async_test_password",
+            return_value=LoginResult("credentials", 400, "captcha"),
+        ) as probe,
+        patch.object(config_flow, "_finish") as finish,
+        patch.object(config_flow, "async_update_reload_and_abort") as update,
+    ):
+        result = await config_flow.async_step_password(credentials)
+        assert result["step_id"] == "password_result"
+        assert result["errors"] == {"base": "password_captcha"}
+        assert result["description_placeholders"] == {
+            "stage": "credentials",
+            "status": "400",
+        }
+        assert "stage=credentials http=400 outcome=captcha" in caplog.text
+        assert isinstance(config_flow._password_result, LoginResult)
+        for secret in credentials.values():
+            assert secret not in str(result)
+            assert secret not in caplog.text
+            assert secret not in repr(vars(config_flow))
+        form = await config_flow.async_step_password_result({})
+        assert form["step_id"] == "password"
+        assert all(secret not in str(form) for secret in credentials.values())
+        assert config_flow._password_result is None
+        probe.assert_awaited_once_with(*credentials.values())
+        finish.assert_not_called()
+        update.assert_not_called()
 
 
 async def _complete_session_flow(hass, flow_id, method, data):
@@ -419,6 +463,42 @@ async def test_initial_network_failure_retries_without_forwarding_entities(hass)
         with pytest.raises(ConfigEntryNotReady):
             await async_setup_entry(hass, entry)
         forward.assert_not_awaited()
+
+
+async def test_registered_password_flow_returns_diagnostics_not_an_entry(
+    hass, tmp_path
+):
+    (tmp_path / "custom_components").symlink_to(
+        Path(__file__).parents[1] / "custom_components", target_is_directory=True
+    )
+    loader.async_setup(hass)
+    await hass.config_entries.async_initialize()
+    with patch(
+        "custom_components.vattenfall.config_flow.async_test_password",
+        return_value=LoginResult("credentials", 400, "captcha"),
+    ) as probe:
+        menu = await hass.config_entries.flow.async_init(
+            "vattenfall", context={"source": "user"}
+        )
+        login = await hass.config_entries.flow.async_configure(
+            menu["flow_id"], {"next_step_id": "password"}
+        )
+        assert login["step_id"] == "password"
+        result = await hass.config_entries.flow.async_configure(
+            login["flow_id"],
+            {
+                "username": "synthetic@example.invalid",
+                "password": "synthetic-never-save",
+            },
+        )
+        assert result["step_id"] == "password_result"
+        assert result["errors"] == {"base": "password_captcha"}
+        assert "synthetic-never-save" not in str(result)
+        assert hass.config_entries.async_entries("vattenfall") == []
+        again = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+        assert again["step_id"] == "password"
+        assert probe.await_count == 1
+        hass.config_entries.flow.async_abort(again["flow_id"])
 
 
 @pytest.mark.parametrize("method", ["manual", "browser"])

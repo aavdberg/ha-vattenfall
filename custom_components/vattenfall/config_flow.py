@@ -1,5 +1,6 @@
-"""Browser-assisted or manual session import, without portal passwords."""
+"""Portal session import and an explicit, non-persistent password test."""
 
+import logging
 from collections.abc import Mapping
 from datetime import datetime
 from secrets import compare_digest, token_urlsafe
@@ -21,6 +22,7 @@ from .api import (
     PortalCredentials,
     VattenfallClient,
 )
+from .auth import LoginResult, async_test_password
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_SUBSCRIPTION_KEY,
@@ -32,6 +34,7 @@ from .models import InvalidTariffData
 
 _SECRET_FIELDS = (CONF_ACCESS_TOKEN, CONF_SUBSCRIPTION_KEY, CONF_VF_CONTEXT)
 BROWSER_TIMEOUT = 600
+_LOGGER = logging.getLogger(__name__)
 
 
 def _schema() -> vol.Schema:
@@ -74,15 +77,66 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._browser_data: dict[str, str] | None = None
         self._browser_deadline = 0.0
         self._browser_cancel: CALLBACK_TYPE | None = None
+        self._password_result: LoginResult | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_menu(
-                step_id="user", menu_options=["browser", "manual"]
+                step_id="user", menu_options=["password", "browser", "manual"]
             )
         return await self.async_step_manual(user_input)
+
+    async def async_step_password(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            self._password_result = await async_test_password(
+                user_input["username"], user_input["password"]
+            )
+            result = self._password_result
+            _LOGGER.warning(
+                "Experimental password login: stage=%s http=%s outcome=%s",
+                result.stage,
+                result.status if result.status is not None else "none",
+                result.outcome,
+            )
+            return await self.async_step_password_result()
+        self._password_result = None
+        return self.async_show_form(
+            step_id="password",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("username"): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.EMAIL
+                        )
+                    ),
+                    vol.Required("password"): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_password_result(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        result = self._password_result
+        if user_input is not None or result is None:
+            return await self.async_step_password()
+        return self.async_show_form(
+            step_id="password_result",
+            data_schema=vol.Schema({}),
+            errors={"base": f"password_{result.outcome}"},
+            description_placeholders={
+                "stage": result.stage,
+                "status": str(result.status) if result.status is not None else "-",
+            },
+        )
 
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
@@ -122,6 +176,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_remove(self) -> None:
         self._clear_browser()
+        self._password_result = None
 
     @callback
     def _browser_form(self, errors: dict[str, str] | None = None) -> ConfigFlowResult:
@@ -190,7 +245,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
         return self.async_show_menu(
-            step_id="reauth", menu_options=["browser", "reauth_confirm"]
+            step_id="reauth", menu_options=["password", "browser", "reauth_confirm"]
         )
 
     async def async_step_reauth_confirm(
@@ -214,7 +269,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_menu(
-                step_id="reconfigure", menu_options=["browser", "manual"]
+                step_id="reconfigure", menu_options=["password", "browser", "manual"]
             )
         errors: dict[str, str] = {}
         if user_input is not None:
