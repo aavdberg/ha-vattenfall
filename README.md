@@ -12,11 +12,10 @@ monthly usage summaries and installment information in Home Assistant.
 Not affiliated with, endorsed by, or supported by Vattenfall or Home Assistant.
 The original project icon is not an official company logo.
 
-> **Authentication limitation:** this version imports short-lived portal session
-> headers after you log in in Microsoft Edge. It does **not** yet offer ordinary
-> portal sign-in or automatic token refresh. A tested Home Assistant OAuth callback
-> was rejected by the provider (`invalid_callback`). Do not install expecting
-> unattended, permanent authentication.
+> **Authentication:** the optional local Edge companion lets you log in normally
+> in the portal and transfer the session without copying headers. Passwords and
+> MFA stay with Vattenfall. Sessions are still short-lived: there is **no automatic
+> token refresh** or supported OAuth grant. Manual session import remains available.
 
 ## Features
 
@@ -92,6 +91,29 @@ the source branch containing the integration for manual testing.
 
 ## Configuration
 
+### Log in using Edge (local companion)
+
+Install the unpacked [Edge companion](edge-extension/README.md) once. In HA choose
+**Add integration > Mijn Vattenfall > Log in using Edge**, or choose the same
+method under **Reconfigure** / reauthentication for an existing entry.
+
+Keep the HA setup dialog open. In **that HA tab**, click the extension and
+**Connect and open Vattenfall**. Log in normally in the portal tab it opens,
+complete MFA yourself and select the intended account. Once the badge says
+**ON**, reopen the companion **in the portal tab** and choose **Transfer this
+selected account**. It reloads Contract; once the badge says **OK**, return to
+HA and submit the setup to validate/save the received session.
+Use **the same account** when replacing an existing entry.
+
+No headers or pairing codes need copying. Pairing is single-use and expires after
+ten minutes; canceling the HA flow discards its temporary session. The companion
+uses the chosen signed-in HA tab and its existing authenticated API, not an
+anonymous callback or a remote relay. HA must use HTTPS, except that local
+loopback HTTP is allowed (the test installation uses `http://localhost:8124`).
+The extension is source-distributed, not listed in the Edge store.
+
+### Manual session import (fallback)
+
 1. In **Microsoft Edge**, log in to
    [Mijn Vattenfall > Contract](https://www.vattenfall.nl/service/mijn-vattenfall/vf/direct-regelen/contract),
    complete MFA yourself and select the intended account.
@@ -101,11 +123,12 @@ the source branch containing the integration for manual testing.
 3. Privately copy these **Request Headers**: `Authorization`,
    `Ocp-Apim-Subscription-Key` and `Vf-Context`. The `Bearer ` prefix is accepted.
 4. Open **Settings > Devices & services > Add integration** and search for
-   **Mijn Vattenfall (unofficial)**. Enter the three values in its masked fields.
+   **Mijn Vattenfall (unofficial)**. Choose **Import session headers manually**
+   and enter the three values in its masked fields.
    Setup checks actual current tariffs before creating an entry.
 
 Never paste credentials, HAR files or full cURL exports into an issue or chat.
-The integration does not transfer your browser session automatically.
+Without the companion, the integration does not transfer a browser session.
 `Vf-Context` selects the account; account identities are deliberately not fetched.
 Use a separate integration entry for another account. Reconfigure/reauthenticate
 only with headers for the **same account**: a change of identity cannot be detected.
@@ -117,8 +140,9 @@ A failed overview does not remove working tariff values. Changes appear on the
 next refresh, not necessarily exactly at midnight.
 
 - **Expired session / HTTP 401 or 403 / redirect:** HA requests reauthentication.
-  Log in in Edge again and replace all three headers. **Reconfigure** can replace
-  them proactively. Passwords and MFA codes never go through this integration.
+  Log in through the companion again, or replace all three headers manually.
+  **Reconfigure** can replace them proactively. Passwords and MFA codes never go
+  through this integration.
 - **Network, rate limit, server or schema failure:** the affected entities become
   unavailable instead of presenting stale numbers as current.
 - **Missing monthly readings or unsuccessful installment advice:** no zero or
@@ -184,12 +208,14 @@ python -m pip install ".[test]" "homeassistant==2026.10.0"
 python -m pytest -q
 python -m ruff check .
 python -m ruff format --check .
+node --test edge-extension/*.test.js
 ```
 
 Tests use real HA core/platform objects and synthetic fixtures, including JSON
 wire serialization, stale/recovery behavior, safe diagnostics and monthly period
 semantics. No live portal login is needed. Keep Decimal precision internally and
 expose only JSON-safe attributes.
+The optional companion uses Node.js 24+ for dependency-free tests.
 
 The Python project installs test dependencies/metadata only; HACS/manual copying
 installs the integration. Do not register `custom_components` as an editable pip

@@ -3,6 +3,23 @@
   "config": {
     "step": {
       "user": {
+        "title": "Verbind Mijn Vattenfall",
+        "description": "Gebruik de lokale Edge-extensie na normaal inloggen, of importeer headers handmatig. Niet-ondersteunde private API; sessies verlopen.",
+        "menu_options": {"browser": "Inloggen via Edge", "manual": "Sessieheaders handmatig importeren"}
+      },
+      "browser": {
+        "title": "Inloggen via Edge",
+        "description": "Laat dit venster open. Installeer de lokale Edge-extensie uit de repository, klik op het extensie-icoon in DIT Home Assistant-tabblad en kies Connect. Log normaal in in het geopende portaaltabblad en selecteer het gewenste account bij Contract. Open de extensie in DAT portaaltabblad en kies Transfer this selected account. Zodra de extensie OK toont, kom je hier terug en kies je Verzenden. Headers kopieren is niet nodig. Koppelen verloopt na 10 minuten. Gebruik bij opnieuw aanmelden HETZELFDE account.\n\nKoppelcode (automatisch gelezen door de extensie): `{pairing_code}`"
+      },
+      "browser_confirm": {
+        "title": "Bevestig de ontvangen sessie",
+        "description": "Sessie ontvangen van Edge. Kies Verzenden om actuele tarieven te controleren en op te slaan. Bevestig bij opnieuw aanmelden of configureren dat je HETZELFDE account selecteerde. Annuleren verwijdert de tijdelijke sessie."
+      },
+      "reauth": {
+        "title": "Vervang de verlopen portaalsessie",
+        "menu_options": {"browser": "Opnieuw inloggen via Edge", "reauth_confirm": "Sessieheaders handmatig importeren"}
+      },
+      "manual": {
         "title": "Importeer een Mijn Vattenfall-sessie",
         "description": "Niet-ondersteunde private API. Log in via Edge, open Ontwikkelhulpprogramma's > Netwerk, herlaad Contract en kopieer deze drie aanvraagheaders uit het contracts-verzoek. Deel ze niet. Sessies kunnen snel verlopen; automatisch inloggen en MFA worden niet uitgevoerd. Zie de README.",
         "data": {
@@ -22,6 +39,7 @@
       },
       "reconfigure": {
         "title": "Vervang de portaalsessie",
+        "menu_options": {"browser": "Opnieuw inloggen via Edge", "manual": "Sessieheaders handmatig importeren"},
         "description": "Kopieer alle drie de nieuwe headers voor hetzelfde geselecteerde contractaccount. De accountidentiteit wordt niet gecontroleerd; voeg voor een ander account een nieuwe integratie toe.",
         "data": {
           "access_token": "Authorization (Bearer-token)",
@@ -31,6 +49,9 @@
       }
     },
     "error": {
+      "browser_pending": "Rond eerst de overdracht via Edge af en kies daarna Verzenden. Er is nog geen sessie ontvangen.",
+      "browser_timeout": "De koppeling is verlopen. Verbind de extensie opnieuw met deze nieuwe configuratie.",
+      "invalid_browser_session": "De browseroverdracht is geweigerd. Verbind opnieuw vanuit dit HA-tabblad.",
       "invalid_auth": "Het portaal weigert deze sessieheaders. Log opnieuw in en kopieer alle drie de actuele waarden.",
       "cannot_connect": "Het contractendpoint kon niet worden gelezen. Controleer de verbinding en probeer opnieuw. Niet-JSON-antwoorden, aanvraaglimieten en servicefouten zijn geen geldige tarieven.",
       "invalid_tariffs": "Het portaal retourneert niet-ondersteunde, onduidelijke of niet-actuele tariefgegevens. Er worden geen prijzen gegokt."

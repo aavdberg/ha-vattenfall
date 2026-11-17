@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Mijn Vattenfall companion</title></head>
+<body>
+  <h2>Mijn Vattenfall</h2>
+  <p>Open the integration's <strong>Log in using Edge</strong> setup in this Home Assistant tab, then connect.</p>
+  <p id="status" role="status">Not connected.</p>
+  <button id="connect" type="button">Connect and open Vattenfall</button>
+  <button id="transfer" type="button">Transfer this selected account</button>
+  <button id="disconnect" type="button">Disconnect</button>
+  <p>Log in normally and select the intended account on Contract. In that portal tab, reopen this popup and choose Transfer this selected account. Then return to HA and submit the setup. No password or MFA is handled here.</p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

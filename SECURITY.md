@@ -14,6 +14,13 @@ encrypted. Protect HA administrator access, `.storage`, backups and filesystem
 permissions. Headers can authorize broader portal access than this integration
 needs. Revoke exposed sessions where the provider allows it.
 
+The optional [local Edge companion](edge-extension/README.md) transfers only an
+explicitly paired portal session to the chosen signed-in HA tab. Pairing is
+single-use and bounded to ten minutes. It adds no anonymous callback and stores
+no portal credentials or HA tokens in extension storage. Use HTTPS except for
+local loopback testing; trust the HA origin before connecting. Disconnect cannot
+retract an already-sent request: cancel the HA flow to discard unconfirmed data.
+
 Do not submit passwords, tokens, cookies, account identifiers, addresses, actual
 contract prices, HAR files, or raw portal responses. Tests must use invented data.
 Diagnostics are an allowlist of health metadata, without credentials or tariffs.

@@ -3,6 +3,23 @@
   "config": {
     "step": {
       "user": {
+        "title": "Connect Mijn Vattenfall",
+        "description": "Use the local Edge companion after normal portal login, or import headers manually. Private, unsupported API; sessions expire.",
+        "menu_options": {"browser": "Log in using Edge", "manual": "Import session headers manually"}
+      },
+      "browser": {
+        "title": "Log in using Edge",
+        "description": "Keep this dialog open. Install the local Edge companion from the repository, click its toolbar icon in THIS Home Assistant tab, then Connect. Log in normally in the portal tab it opens and select the intended account on Contract. Open the companion in THAT portal tab and choose Transfer this selected account. After its badge says OK, return here and press Submit. No headers need copying. Pairing expires in 10 minutes. Reauthentication must use the SAME account.\n\nPairing marker (automatically read by the companion): `{pairing_code}`"
+      },
+      "browser_confirm": {
+        "title": "Confirm the received session",
+        "description": "Session received from Edge. Submit to validate current tariffs and save it. For reauthentication/reconfiguration, confirm you selected the SAME account. Cancel to discard it."
+      },
+      "reauth": {
+        "title": "Replace the expired portal session",
+        "menu_options": {"browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
+      },
+      "manual": {
         "title": "Import a Mijn Vattenfall session",
         "description": "Unsupported private API. Log in using Edge, open Developer Tools > Network, reload Contract and copy these three request headers from the contracts request. Do not share them. Sessions can expire quickly; no automatic login or MFA is performed. See the README for instructions.",
         "data": {
@@ -22,6 +39,7 @@
       },
       "reconfigure": {
         "title": "Replace the portal session",
+        "menu_options": {"browser": "Log in again using Edge", "manual": "Import session headers manually"},
         "description": "Copy all three new headers for the same selected contract account. Reconfigure does not verify account identity; use a new integration entry for another account.",
         "data": {
           "access_token": "Authorization (Bearer token)",
@@ -31,6 +49,9 @@
       }
     },
     "error": {
+      "browser_pending": "Finish the Edge transfer first, then submit. No session has been received yet.",
+      "browser_timeout": "Pairing expired. Connect the extension again using this new setup.",
+      "invalid_browser_session": "The browser handoff was rejected. Reconnect from this HA tab.",
       "invalid_auth": "The portal rejected these session headers. Log in again and copy all three current values.",
       "cannot_connect": "Could not read the contracts endpoint. Check connectivity and try again. Non-JSON responses, rate limits and service failures are not treated as valid tariffs.",
       "invalid_tariffs": "The portal returned unsupported, ambiguous or non-current tariff data. No prices have been guessed."

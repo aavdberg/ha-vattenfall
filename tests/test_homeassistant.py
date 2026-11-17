@@ -56,6 +56,127 @@ def flow(hass):
     return result
 
 
+async def _complete_session_flow(hass, flow_id, method, data):
+    form = await hass.config_entries.flow.async_configure(
+        flow_id, {"next_step_id": method}
+    )
+    if method == "browser":
+        from homeassistant.data_entry_flow import InvalidData
+
+        payload = {
+            **data,
+            "browser_session": form["description_placeholders"]["pairing_code"].split(
+                "."
+            )[-1],
+        }
+        receipt = await hass.config_entries.flow.async_configure(flow_id, payload)
+        assert receipt["step_id"] == "browser_confirm"
+        assert not any(value in str(receipt) for value in data.values())
+        with pytest.raises(InvalidData):
+            await hass.config_entries.flow.async_configure(flow_id, payload)
+        return await hass.config_entries.flow.async_configure(flow_id, {})
+    return await hass.config_entries.flow.async_configure(flow_id, data)
+
+
+@pytest.mark.parametrize("invalid", ["wrong", "unicode", "missing", "extra", "type"])
+async def test_browser_handoff_rejects_malformed_or_wrong_nonce(hass, invalid):
+    config_flow = flow(hass)
+    form = await config_flow.async_step_browser()
+    nonce = form["description_placeholders"]["pairing_code"].split(".")[-1]
+    data = {**SESSION_DATA, "browser_session": nonce}
+    if invalid == "wrong":
+        data["browser_session"] = "x" * 43
+    elif invalid == "unicode":
+        data["browser_session"] = "\N{LATIN SMALL LETTER E WITH ACUTE}" * 43
+    elif invalid == "missing":
+        del data[CONF_ACCESS_TOKEN]
+    elif invalid == "extra":
+        data["unrelated"] = "discard"
+    else:
+        data[CONF_VF_CONTEXT] = 123
+    result = await config_flow.async_step_browser(data)
+    assert result["errors"] == {"base": "invalid_browser_session"}
+    assert config_flow._browser_data is None
+    assert not any(value in str(result) for value in SESSION_DATA.values())
+    config_flow.async_remove()
+
+
+async def test_browser_expiry_and_cancel_discard_staged_credentials(hass):
+    config_flow = flow(hass)
+    with patch("custom_components.vattenfall.config_flow.async_call_later") as timer:
+        form = await config_flow.async_step_browser()
+        nonce = form["description_placeholders"]["pairing_code"].split(".")[-1]
+        await config_flow.async_step_browser({**SESSION_DATA, "browser_session": nonce})
+        assert config_flow._browser_data == SESSION_DATA
+        timer.call_args.args[2](None)
+        assert config_flow._browser_data is None
+        result = await config_flow.async_step_browser_confirm({})
+        assert result["errors"] == {"base": "browser_timeout"}
+        new_nonce = result["description_placeholders"]["pairing_code"].split(".")[-1]
+        assert new_nonce != nonce
+        await config_flow.async_step_browser(
+            {**SESSION_DATA, "browser_session": new_nonce}
+        )
+        config_flow.async_remove()
+        assert config_flow._browser_data is None
+        assert config_flow._browser_nonce is None
+        assert config_flow._browser_cancel is None
+
+
+async def test_browser_validates_before_saving_and_discards_rejected_session(hass):
+    config_flow = flow(hass)
+    form = await config_flow.async_step_browser()
+    nonce = form["description_placeholders"]["pairing_code"].split(".")[-1]
+    await config_flow.async_step_browser({**SESSION_DATA, "browser_session": nonce})
+    with patch(
+        "custom_components.vattenfall.config_flow.VattenfallClient.async_get_tariffs",
+        side_effect=PortalAuthError,
+    ):
+        result = await config_flow.async_step_browser_confirm({})
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert config_flow._browser_data is None
+    assert nonce not in str(result)
+    config_flow.async_remove()
+
+
+async def test_browser_deadline_is_enforced_even_before_timer_runs(hass):
+    config_flow = flow(hass)
+    form = await config_flow.async_step_browser()
+    nonce = form["description_placeholders"]["pairing_code"].split(".")[-1]
+    with patch(
+        "custom_components.vattenfall.config_flow.monotonic",
+        return_value=config_flow._browser_deadline,
+    ):
+        result = await config_flow.async_step_browser(
+            {**SESSION_DATA, "browser_session": nonce}
+        )
+    assert result["errors"] == {"base": "browser_timeout"}
+    assert config_flow._browser_data is None
+    config_flow.async_remove()
+
+
+async def test_browser_reconfigure_updates_existing_entry(hass):
+    config_flow = flow(hass)
+    config_flow.context = {"source": "reconfigure"}
+    entry = MagicMock(spec=ConfigEntry)
+    form = await config_flow.async_step_browser()
+    nonce = form["description_placeholders"]["pairing_code"].split(".")[-1]
+    await config_flow.async_step_browser({**SESSION_DATA, "browser_session": nonce})
+    with (
+        patch(
+            "custom_components.vattenfall.config_flow.VattenfallClient.async_get_tariffs",
+            new_callable=AsyncMock,
+        ),
+        patch.object(config_flow, "_get_reconfigure_entry", return_value=entry),
+        patch.object(
+            config_flow, "async_update_reload_and_abort", return_value={"type": "abort"}
+        ) as update,
+    ):
+        await config_flow.async_step_browser_confirm({})
+    update.assert_called_once_with(entry, data_updates=SESSION_DATA)
+    assert config_flow._browser_data is None
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
@@ -300,8 +421,9 @@ async def test_initial_network_failure_retries_without_forwarding_entities(hass)
         forward.assert_not_awaited()
 
 
+@pytest.mark.parametrize("method", ["manual", "browser"])
 async def test_real_flow_loads_integration_and_registers_sensors(
-    hass, payload, tmp_path
+    hass, payload, tmp_path, method
 ):
     """Run HA's flow manager, loader, entry setup and real sensor platform together."""
     (tmp_path / "custom_components").symlink_to(
@@ -324,9 +446,9 @@ async def test_real_flow_loads_integration_and_registers_sensors(
         form = await hass.config_entries.flow.async_init(
             "vattenfall", context={"source": "user"}
         )
-        assert form["type"] == "form"
-        result = await hass.config_entries.flow.async_configure(
-            form["flow_id"], SESSION_DATA
+        assert form["type"] == "menu"
+        result = await _complete_session_flow(
+            hass, form["flow_id"], method, SESSION_DATA
         )
         await hass.async_block_till_done()
         assert result["type"] == "create_entry"
@@ -368,11 +490,14 @@ async def test_real_flow_loads_integration_and_registers_sensors(
             for progress in hass.config_entries.flow.async_progress()
             if progress["context"]["source"] == "reauth"
         )
-        assert reauth["step_id"] == "reauth_confirm"
+        assert reauth["step_id"] == "reauth"
         fetch.side_effect = None
         replacement = {key: f"rotated-{value}" for key, value in SESSION_DATA.items()}
-        reauthenticated = await hass.config_entries.flow.async_configure(
-            reauth["flow_id"], replacement
+        reauthenticated = await _complete_session_flow(
+            hass,
+            reauth["flow_id"],
+            "reauth_confirm" if method == "manual" else "browser",
+            replacement,
         )
         await hass.async_block_till_done()
         assert reauthenticated["reason"] == "reauth_successful"
