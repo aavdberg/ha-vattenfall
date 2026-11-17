@@ -277,7 +277,7 @@ async def test_browser_reconfigure_updates_existing_entry(hass):
         ) as update,
     ):
         await config_flow.async_step_browser_confirm({})
-    update.assert_called_once_with(entry, data_updates=SESSION_DATA)
+    update.assert_called_once_with(entry, data=SESSION_DATA)
     assert config_flow._browser_data is None
 
 
@@ -324,6 +324,9 @@ async def test_config_creates_entry_only_after_validation(hass):
 )
 async def test_reauth_and_reconfigure_replace_headers(hass, step, getter):
     config_flow = flow(hass)
+    config_flow.context = {
+        "source": "reauth" if step == "async_step_reauth_confirm" else "reconfigure"
+    }
     entry = MagicMock(spec=ConfigEntry)
     with (
         patch(
@@ -336,7 +339,7 @@ async def test_reauth_and_reconfigure_replace_headers(hass, step, getter):
         ) as update,
     ):
         await getattr(config_flow, step)(SESSION_DATA)
-    update.assert_called_once_with(entry, data_updates=SESSION_DATA)
+    update.assert_called_once_with(entry, data=SESSION_DATA)
 
 
 async def test_reauth_rejection_preserves_existing_entry(hass):

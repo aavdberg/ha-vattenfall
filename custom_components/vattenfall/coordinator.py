@@ -51,7 +51,7 @@ class VattenfallCoordinator(DataUpdateCoordinator[TariffSnapshot]):
             )
         except PortalAuthError:
             raise ConfigEntryAuthFailed(
-                "Portal session expired or rejected; replace the three session headers"
+                "Vattenfall authentication expired or rejected; log in again"
             ) from None
         except (PortalConnectionError, InvalidTariffData) as err:
             raise UpdateFailed(str(err)) from None

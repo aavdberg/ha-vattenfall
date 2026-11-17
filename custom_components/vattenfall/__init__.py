@@ -6,6 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import PortalCredentials, VattenfallClient
+from .connection import RenewableSession
 from .const import CONF_ACCESS_TOKEN, CONF_SUBSCRIPTION_KEY, CONF_VF_CONTEXT
 from .coordinator import VattenfallCoordinator, VattenfallOverviewCoordinator
 
@@ -18,7 +19,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VattenfallConfigEntry) -
     """Validate the session and perform the first refresh before creating entities."""
     client = VattenfallClient(
         async_get_clientsession(hass),
-        PortalCredentials(
+        RenewableSession(hass, entry).async_credentials
+        if entry.data.get("auth_method") == "oauth"
+        else PortalCredentials(
             entry.data[CONF_ACCESS_TOKEN],
             entry.data[CONF_SUBSCRIPTION_KEY],
             entry.data[CONF_VF_CONTEXT],

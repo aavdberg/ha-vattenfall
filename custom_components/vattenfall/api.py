@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -67,7 +68,11 @@ class PortalCredentials:
 class VattenfallClient:
     """Read fixed portal services without redirects or account enumeration."""
 
-    def __init__(self, session: ClientSession, credentials: PortalCredentials) -> None:
+    def __init__(
+        self,
+        session: ClientSession,
+        credentials: PortalCredentials | Callable[[], Awaitable[PortalCredentials]],
+    ) -> None:
         self._session = session
         self._credentials = credentials
 
@@ -82,7 +87,12 @@ class VattenfallClient:
         params: dict[str, str] | None = None,
         optional: bool = False,
     ) -> object:
-        headers = self._credentials.headers()
+        credentials = (
+            await self._credentials()
+            if callable(self._credentials)
+            else self._credentials
+        )
+        headers = credentials.headers()
         try:
             async with asyncio.timeout(30):
                 async with self._session.get(

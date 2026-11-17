@@ -4,8 +4,18 @@
     "step": {
       "user": {
         "title": "Connect Mijn Vattenfall",
-        "description": "Use the local Edge companion after normal portal login, or import headers manually. Private, unsupported API; sessions expire.",
-        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in using Edge", "manual": "Import session headers manually"}
+        "description": "Connect through a normal browser login with automatic token renewal, or use the existing session-import options. All routes depend on unsupported private APIs.",
+        "menu_options": {"login": "Connect with browser login and automatic renewal", "oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in using Edge", "manual": "Import session headers manually"}
+      },
+      "login": {
+        "title": "Connect with Vattenfall browser login",
+        "description": "Unlike the diagnostic test, this connects your account and saves renewable tokens in Home Assistant configuration. Protect your HA configuration and backups; tokens are not separately encrypted by this integration. Your password is entered only on Vattenfall's site.\n\n1. Open a private Microsoft Edge window, then F12 > Network and enable Preserve log. Open [Vattenfall login]({authorize_url}) in THAT window. Complete login and any CAPTCHA/MFA normally.\n2. Do not approve opening a mobile app. Find the final authorize response in Network and copy its RESPONSE Location starting with vfea://oauth?code=...&state=... (parameter order may differ).\n3. Paste that entire sensitive link below within 10 minutes. Never share it in chat or export a HAR. On an error, use the NEW login link shown here; each code is used only once.\n\nHA verifies the signed identity and lets you select a contract account before checking tariffs and saving anything. The earlier diagnostic callback cannot be reused. No mobile-client flags or challenge bypasses are used.",
+        "data": {"callback_url": "Full vfea://oauth callback link (sensitive, one use)"}
+      },
+      "account": {
+        "title": "Confirm the intended contract account",
+        "description": "Choose the customer number / contract account you want to connect. Only identifiers belonging to your verified login are offered; names and addresses are not retained. Reauthentication and reconfiguration must keep the same account. Submit to verify tariff access and save the connection. Cancel to discard it.",
+        "data": {"vf_context": "Customer number / contract account"}
       },
       "oauth": {
         "title": "Test browser login and refresh (experimental)",
@@ -35,7 +45,7 @@
       },
       "reauth": {
         "title": "Replace the expired portal session",
-        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
+        "menu_options": {"login": "Connect with browser login and automatic renewal", "oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "reauth_confirm": "Import session headers manually"}
       },
       "manual": {
         "title": "Import a Mijn Vattenfall session",
@@ -57,7 +67,7 @@
       },
       "reconfigure": {
         "title": "Replace the portal session",
-        "menu_options": {"oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "manual": "Import session headers manually"},
+        "menu_options": {"login": "Connect with browser login and automatic renewal", "oauth": "Test app browser login and refresh (experimental)", "password": "Test username/password login (experimental)", "browser": "Log in again using Edge", "manual": "Import session headers manually"},
         "description": "Copy all three new headers for the same selected contract account. Reconfigure does not verify account identity; use a new integration entry for another account.",
         "data": {
           "access_token": "Authorization (Bearer token)",
@@ -67,6 +77,20 @@
       }
     },
     "error": {
+      "connect_invalid_callback": "Invalid callback or state. Nothing was saved. Use the new login link and a fresh callback.",
+      "connect_expired": "Login expired or was consumed. Use the new login link.",
+      "connect_provider_denied": "Vattenfall denied authorization. No challenge or client restriction was bypassed.",
+      "connect_client_rejected": "Vattenfall rejected this OAuth client. Nothing was saved.",
+      "connect_grant_rejected": "The authorization code was rejected or already used. Use the new login link.",
+      "connect_rate_limited": "Vattenfall rate-limited the request. Wait before trying again.",
+      "connect_unexpected_response": "Unsupported token response. No connection was saved.",
+      "connect_cannot_connect": "Could not reach Vattenfall. Nothing was saved. A new login may be needed.",
+      "connect_no_refresh_token": "No usable refresh token was returned; a renewable connection could not be established.",
+      "connect_identity_invalid": "Identity verification failed (signature, issuer, audience, nonce, validity or required claims). No tokens were saved.",
+      "connect_bootstrap_changed": "The private portal configuration or account response changed. No keys or account context were guessed.",
+      "connect_api_rejected": "The account API rejected the app identity or public application configuration. Nothing was saved.",
+      "connect_wrong_account": "This login or selection does not match the intended account. Existing entries are unchanged.",
+      "connect_no_accounts": "No usable contract accounts were returned for this verified identity.",
       "oauth_invalid_callback": "The link is malformed, not the registered app callback, or belongs to a different attempt. No token request was sent. Start a new attempt.",
       "oauth_expired": "This attempt expired or was already consumed. Start a new attempt; old callback links cannot be reused.",
       "oauth_provider_denied": "Vattenfall returned an authorization error for this attempt. No token request was sent. No callback/client restrictions are bypassed.",
@@ -94,6 +118,8 @@
       "invalid_tariffs": "The portal returned unsupported, ambiguous or non-current tariff data. No prices have been guessed."
     },
     "abort": {
+      "login_expired": "The login was cancelled, replaced or expired. Start a new connection.",
+      "already_configured": "This account is already configured.",
       "reauth_successful": "Portal session replaced successfully.",
       "reconfigure_successful": "Portal session replaced successfully."
     }

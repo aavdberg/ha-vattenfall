@@ -1,5 +1,6 @@
 """Portal session import and an explicit, non-persistent password test."""
 
+import hashlib
 import logging
 from collections.abc import Mapping
 from datetime import datetime
@@ -23,6 +24,7 @@ from .api import (
     VattenfallClient,
 )
 from .auth import LoginResult, async_test_password
+from .connection import Account, async_accounts, async_application_keys
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_SUBSCRIPTION_KEY,
@@ -31,7 +33,16 @@ from .const import (
     DOMAIN,
 )
 from .models import InvalidTariffData
-from .oauth import OAUTH_TIMEOUT, OAuthAttempt, OAuthTestResult, async_test_oauth
+from .oauth import (
+    ISSUER,
+    OAUTH_TIMEOUT,
+    OAuthAttempt,
+    OAuthError,
+    OAuthTestResult,
+    OAuthTokens,
+    async_authorize,
+    async_test_oauth,
+)
 
 _SECRET_FIELDS = (CONF_ACCESS_TOKEN, CONF_SUBSCRIPTION_KEY, CONF_VF_CONTEXT)
 BROWSER_TIMEOUT = 600
@@ -82,15 +93,164 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._oauth_attempt: OAuthAttempt | None = None
         self._oauth_cancel: CALLBACK_TYPE | None = None
         self._oauth_result: OAuthTestResult | None = None
+        self._login_tokens: OAuthTokens | None = None
+        self._login_accounts: tuple[Account, ...] = ()
+        self._login_key: str | None = None
+        self._login_deadline = 0.0
+        self._login_generation = 0
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_menu(
-                step_id="user", menu_options=["oauth", "password", "browser", "manual"]
+                step_id="user",
+                menu_options=["login", "oauth", "password", "browser", "manual"],
             )
         return await self.async_step_manual(user_input)
+
+    @callback
+    def _clear_login(self, _now: datetime | None = None) -> None:
+        self._clear_oauth()
+        self._login_tokens = None
+        self._login_accounts = ()
+        self._login_key = None
+        self._login_deadline = 0.0
+        self._login_generation += 1
+
+    @callback
+    def _login_form(self, error: str | None = None) -> ConfigFlowResult:
+        self._clear_login()
+        self._oauth_attempt = OAuthAttempt.create()
+        self._login_deadline = self._oauth_attempt.deadline
+        self._oauth_cancel = async_call_later(
+            self.hass, OAUTH_TIMEOUT, self._clear_login
+        )
+        return self.async_show_form(
+            step_id="login",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("callback_url"): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    )
+                }
+            ),
+            errors={"base": f"connect_{error}"} if error else {},
+            description_placeholders={
+                "authorize_url": self._oauth_attempt.authorization_url()
+            },
+        )
+
+    def _target_entry(self) -> config_entries.ConfigEntry | None:
+        if self.context["source"] == config_entries.SOURCE_REAUTH:
+            return self._get_reauth_entry()
+        if self.context["source"] == config_entries.SOURCE_RECONFIGURE:
+            return self._get_reconfigure_entry()
+        return None
+
+    async def async_step_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is None:
+            return self._login_form()
+        attempt = self._oauth_attempt
+        self._oauth_attempt = None
+        if attempt is None:
+            return self._login_form("expired")
+        generation = self._login_generation
+        try:
+            tokens = await async_authorize(attempt, user_input["callback_url"])
+            session = async_get_clientsession(self.hass)
+            keys = await async_application_keys(session)
+            accounts = await async_accounts(session, tokens, keys)
+            if generation != self._login_generation:
+                return self.async_abort(reason="login_expired")
+            if monotonic() >= self._login_deadline:
+                raise OAuthError("expired")
+            if entry := self._target_entry():
+                if (
+                    entry.data.get("auth_method") == "oauth"
+                    and entry.data["subject"] != tokens.subject
+                ):
+                    raise OAuthError("wrong_account")
+                accounts = tuple(
+                    account
+                    for account in accounts
+                    if account.context == entry.data[CONF_VF_CONTEXT]
+                )
+                if not accounts:
+                    raise OAuthError("wrong_account")
+            self._login_tokens = tokens
+            self._login_accounts = accounts
+            self._login_key = keys.contracts
+            return await self.async_step_account()
+        except OAuthError as err:
+            if generation != self._login_generation:
+                return self.async_abort(reason="login_expired")
+            _LOGGER.warning("Vattenfall browser connection: %s", err.outcome)
+            return self._login_form(err.outcome)
+
+    async def async_step_account(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        tokens = self._login_tokens
+        key = self._login_key
+        if tokens is None or key is None or monotonic() >= self._login_deadline:
+            return self._login_form("expired")
+        choices = {
+            account.context: f"{account.customer_id} / {account.contract_account_id}"
+            for account in self._login_accounts
+        }
+        error = None
+        if user_input is not None:
+            context = user_input.get(CONF_VF_CONTEXT)
+            if not isinstance(context, str) or context not in choices:
+                error = "connect_wrong_account"
+            else:
+                data = {
+                    CONF_ACCESS_TOKEN: tokens.id_token,
+                    CONF_SUBSCRIPTION_KEY: key,
+                    CONF_VF_CONTEXT: context,
+                }
+                error = await _validate(self.hass, data)
+                if (
+                    monotonic() >= self._login_deadline
+                    or self._login_tokens is not tokens
+                ):
+                    return self._login_form("expired")
+                if error is None:
+                    unique_id = hashlib.sha256(
+                        f"{ISSUER}\0{tokens.subject}\0{context}".encode()
+                    ).hexdigest()
+                    await self.async_set_unique_id(unique_id)
+                    entry = self._target_entry()
+                    if any(
+                        candidate.unique_id == unique_id
+                        and (entry is None or candidate.entry_id != entry.entry_id)
+                        for candidate in self._async_current_entries()
+                    ):
+                        self._clear_login()
+                        return self.async_abort(reason="already_configured")
+                    credentials = {
+                        **tokens.data(),
+                        CONF_SUBSCRIPTION_KEY: key,
+                        CONF_VF_CONTEXT: context,
+                    }
+                    self._clear_login()
+                    if entry is not None:
+                        return self.async_update_reload_and_abort(
+                            entry, unique_id=unique_id, data=credentials
+                        )
+                    return self.async_create_entry(
+                        title="Mijn Vattenfall", data=credentials
+                    )
+        return self.async_show_form(
+            step_id="account",
+            data_schema=vol.Schema({vol.Required(CONF_VF_CONTEXT): vol.In(choices)}),
+            errors={"base": error} if error else {},
+        )
 
     @callback
     def _clear_oauth(self, _now: datetime | None = None) -> None:
@@ -104,7 +264,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is not None:
             attempt = self._oauth_attempt
-            self._clear_oauth()
+            self._clear_login()
             if attempt is None:
                 self._oauth_result = OAuthTestResult("callback", None, "expired")
             else:
@@ -119,7 +279,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 result.outcome,
             )
             return await self.async_step_oauth_result()
-        self._clear_oauth()
+        self._clear_login()
         self._oauth_result = None
         self._oauth_attempt = OAuthAttempt.create()
         self._oauth_cancel = async_call_later(
@@ -173,7 +333,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             return await self.async_step_password_result()
         self._password_result = None
-        self._clear_oauth()
+        self._clear_login()
         self._oauth_result = None
         return self.async_show_form(
             step_id="password",
@@ -212,6 +372,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        self._clear_login()
         errors: dict[str, str] = {}
         if user_input is not None:
             if error := await _validate(self.hass, user_input):
@@ -227,11 +388,11 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         credentials = {key: data[key] for key in _SECRET_FIELDS}
         if self.context["source"] == config_entries.SOURCE_REAUTH:
             return self.async_update_reload_and_abort(
-                self._get_reauth_entry(), data_updates=credentials
+                self._get_reauth_entry(), data=credentials
             )
         if self.context["source"] == config_entries.SOURCE_RECONFIGURE:
             return self.async_update_reload_and_abort(
-                self._get_reconfigure_entry(), data_updates=credentials
+                self._get_reconfigure_entry(), data=credentials
             )
         return self.async_create_entry(title="Mijn Vattenfall", data=credentials)
 
@@ -249,6 +410,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._clear_browser()
         self._password_result = None
         self._clear_oauth()
+        self._clear_login()
         self._oauth_result = None
 
     @callback
@@ -275,6 +437,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_browser(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        self._clear_login()
         if not user_input:
             return self._browser_form(
                 {"base": "browser_pending"} if user_input is not None else None
@@ -319,7 +482,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="reauth",
-            menu_options=["oauth", "password", "browser", "reauth_confirm"],
+            menu_options=["login", "oauth", "password", "browser", "reauth_confirm"],
         )
 
     async def async_step_reauth_confirm(
@@ -330,10 +493,7 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if error := await _validate(self.hass, user_input):
                 errors["base"] = error
             else:
-                return self.async_update_reload_and_abort(
-                    self._get_reauth_entry(),
-                    data_updates={key: user_input[key] for key in _SECRET_FIELDS},
-                )
+                return self._finish(user_input)
         return self.async_show_form(
             step_id="reauth_confirm", data_schema=_schema(), errors=errors
         )
@@ -344,17 +504,14 @@ class VattenfallConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self.async_show_menu(
                 step_id="reconfigure",
-                menu_options=["oauth", "password", "browser", "manual"],
+                menu_options=["login", "oauth", "password", "browser", "manual"],
             )
         errors: dict[str, str] = {}
         if user_input is not None:
             if error := await _validate(self.hass, user_input):
                 errors["base"] = error
             else:
-                return self.async_update_reload_and_abort(
-                    self._get_reconfigure_entry(),
-                    data_updates={key: user_input[key] for key in _SECRET_FIELDS},
-                )
+                return self._finish(user_input)
         return self.async_show_form(
             step_id="reconfigure", data_schema=_schema(), errors=errors
         )

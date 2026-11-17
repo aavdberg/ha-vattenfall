@@ -12,10 +12,12 @@ monthly usage summaries and installment information in Home Assistant.
 Not affiliated with, endorsed by, or supported by Vattenfall or Home Assistant.
 The original project icon is not an official company logo.
 
-> **Authentication:** the optional local Edge companion lets you log in normally
-> in the portal and transfer the session without copying headers. MFA stays with
-> Vattenfall. Sessions are still short-lived: there is **no automatic token refresh**
-> or supported OAuth grant. Manual session import remains available. An optional
+> **Authentication:** browser login can now create an account-bound connection
+> with automatic token renewal. Password/CAPTCHA/MFA stay on Vattenfall's site.
+> This uses the app's public OAuth identifier, not an officially supported HA
+> grant. Initial setup still requires copying one native callback link.
+> The optional local Edge companion and manual session import remain available;
+> those imported sessions do **not** gain automatic refresh. An optional
 > **experimental password test** sends credentials once from HA to Vattenfall for
 > diagnostics only; it does not connect or update the integration. A separate
 > **experimental app-browser test** checks code exchange and one immediate
@@ -60,7 +62,7 @@ Invoice PDFs, correspondence, account identifiers and addresses are not exposed.
 - A Dutch Mijn Vattenfall account with the relevant contract/data available.
 - Internet access to Vattenfall's HTTPS portal services.
 - HACS for HACS installation, or access to HA's `custom_components` directory.
-- Microsoft Edge to sign in and obtain the current session headers.
+- Microsoft Edge for browser sign-in and the one-time callback/session handoff.
 
 ## Installation
 
@@ -94,6 +96,48 @@ An unmerged PR is not a published HACS release. If no release exists yet, use
 the source branch containing the integration for manual testing.
 
 ## Configuration
+
+### Connect with browser login and automatic renewal
+
+Select **Connect with browser login and automatic renewal**, not the diagnostic
+test. Existing entries can choose this under **Reconfigure** or reauthentication;
+only the same contract account can replace an existing entry.
+
+1. Follow the private Edge / F12 / Preserve log instructions in the HA dialog.
+   Open its **new login link**, complete normal provider login and CAPTCHA/MFA,
+   then copy the final response `Location: vfea://oauth?code=...&state=...`.
+2. Paste the entire link only in HA's masked field within ten minutes.
+   Do not reuse a callback from the earlier diagnostic test.
+3. Explicitly select the intended **customer number / contract account**.
+   HA checks tariff access before saving the connection. Cancel to discard it.
+
+This flow uses fresh state, nonce and S256 PKCE. It validates RS256 signatures
+against the fixed provider JWKS endpoint, the exact issuer/client audience,
+expiry, nonce and signed customer IDs. Initialization is scoped to those IDs;
+only account identifiers are retained from its response, not profile/address
+fields. The portal's public application keys are discovered from named frontend
+configuration fields at runtime, never embedded in the repository. No JavaScript
+is executed. Configuration/schema changes fail explicitly instead of guessing.
+
+The app's **verified ID token** is used for the fixed account/contract services,
+following the app protocol; the OAuth access token is not silently substituted.
+Tokens, scope, nonce and account binding are stored in the HA config entry.
+Refresh is serialized before API use when expiry is within two minutes; rotated
+tokens are saved before subsequent API requests. Refresh must preserve the
+verified subject and selected customer. A rejected grant/identity requests
+reauthentication; network/service failures preserve stored credentials and
+last-known data. There is no background refresh while HA is stopped.
+
+HA configuration and backups need filesystem/access protection: this integration
+does **not** separately encrypt tokens. Removing the entry removes local
+credentials but does not revoke the grant at Vattenfall. Do not enable HTTP wire
+logging, post callback links, or export authenticated network captures.
+
+Real-user code exchange and one immediate refresh were verified in the earlier
+diagnostic. Persistent authentication, signed claims and contract access need a
+fresh user authorization after installing this version; success is not assumed
+from the earlier transport-only result. Long-term provider behavior remains
+unsupported and may change.
 
 ### Test app browser login and refresh (experimental)
 
@@ -129,7 +173,8 @@ Identity-token signatures/claims are not validated or used for authentication
 in this transport-only test. Tokens may remain valid at the provider after
 being discarded locally; the test does not revoke them. A successful immediate
 refresh does not prove long-term refresh or compatibility with contract APIs.
-Full renewable integration authentication remains open in
+Follow the separate persistent-login option above to connect HA; remaining
+real-account/long-term verification is tracked in
 [issue #4](https://github.com/aavdberg/ha-vattenfall/issues/4).
 
 ### Test username/password login (experimental)
@@ -204,7 +249,8 @@ A failed overview does not remove working tariff values. Changes appear on the
 next refresh, not necessarily exactly at midnight.
 
 - **Expired session / HTTP 401 or 403 / redirect:** HA requests reauthentication.
-  Log in through the companion again, or replace all three headers manually.
+  Use browser login again for a renewable entry; imported sessions can use the
+  companion or replace all three headers manually.
   **Reconfigure** can replace them proactively. The optional password test does
   not repair an expired session; MFA codes never go through this integration.
 - **Network, rate limit, server or schema failure:** the affected entities become
@@ -228,7 +274,7 @@ integration for critical billing or unattended financial decisions.
 
 ## Privacy and security
 
-Session headers are credentials. They may authorize broader portal access than
+Tokens and session headers are credentials. They may authorize broader portal access than
 this integration uses. HA stores them in config entries; this is **not guaranteed
 encrypted**, and masked fields are not encryption. Protect administrator access,
 `.storage`, backups and filesystem permissions. Revoke exposed sessions where
@@ -240,6 +286,10 @@ previous-month summaries. Redirects are not followed. Supply identifiers are use
 transiently to request usage and are discarded before snapshots/entities.
 There are no invoice/document downloads, write operations, telemetry or arbitrary
 URL configuration.
+
+Renewable entries additionally use the fixed token/JWKS endpoints. Initial
+browser setup fetches anonymous portal configuration and scoped account
+initialization, retaining only account identifiers from that response.
 
 The explicitly selected experimental password test additionally visits the
 provider's login pages and posts credentials once. It uses a separate temporary
@@ -287,7 +337,7 @@ semantics. No live portal login is needed. Keep Decimal precision internally and
 expose only JSON-safe attributes.
 The optional companion uses Node.js 24+ for dependency-free tests.
 
-The Python project installs test dependencies/metadata only; HACS/manual copying
+The Python project declares its JWT and test dependencies; HACS/manual copying
 installs the integration. Do not register `custom_components` as an editable pip
 namespace: HA expects its search paths to be real directories.
 

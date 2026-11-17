@@ -14,6 +14,23 @@ encrypted. Protect HA administrator access, `.storage`, backups and filesystem
 permissions. Headers can authorize broader portal access than this integration
 needs. Revoke exposed sessions where the provider allows it.
 
+The persistent browser-login option stores renewable tokens and the selected
+account binding in the HA config entry; no password is supplied to HA.
+It uses state, nonce, one-use S256 PKCE, a pinned HTTPS token/JWKS origin and
+RS256 issuer/audience/expiry validation. Initial identity must contain the
+matching nonce; refresh must preserve subject and signed customer membership.
+Only signed customer IDs scope account initialization, and only the explicitly
+selected account is used for tariffs. Profile/address fields in initialization
+are discarded. Public application keys are fetched anonymously from fixed-origin
+frontend assets, not embedded or executed.
+
+Concurrent API updates serialize refresh. Token rotation is persisted before
+API use; transient failures do not erase credentials. Reauthentication must
+match the existing subject and contract account. Changing an entry back to
+manual/session import removes its locally stored renewable credentials.
+Cancellation/expiry clears unconfirmed tokens but does not revoke a provider
+grant. Protect config entries and backups: there is no separate token encryption.
+
 The optional [local Edge companion](edge-extension/README.md) transfers only an
 explicitly paired portal session to the chosen signed-in HA tab. Pairing is
 single-use and bounded to ten minutes. It adds no anonymous callback and stores
